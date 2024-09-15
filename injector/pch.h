@@ -7,9 +7,9 @@
 #include <TlHelp32.h>
 #include <wow64apiset.h>
 #include <Psapi.h>
+#include <ImageHlp.h>
 
 // Standard headers
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <vector>
