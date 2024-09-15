@@ -4,10 +4,11 @@
 
 // WinAPI headers
 #include <Windows.h>
+#include <Shlwapi.h>
 #include <TlHelp32.h>
+#include <ImageHlp.h>
 #include <wow64apiset.h>
 #include <Psapi.h>
-#include <ImageHlp.h>
 
 // Standard headers
 #include <iostream>

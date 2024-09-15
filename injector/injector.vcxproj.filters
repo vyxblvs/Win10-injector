@@ -33,13 +33,13 @@
     <ClCompile Include="pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="manual_map.cpp">
+    <ClCompile Include="mMap.cpp">
       <Filter>Source Files\manual mapping</Filter>
     </ClCompile>
     <ClCompile Include="load_lib.cpp">
       <Filter>Source Files\LoadLibrary</Filter>
     </ClCompile>
-    <ClCompile Include="file_parsing.cpp">
+    <ClCompile Include="parsing.cpp">
       <Filter>Source Files\manual mapping</Filter>
     </ClCompile>
     <ClCompile Include="process.cpp">
@@ -47,10 +47,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="file_parsing.hpp">
+    <ClInclude Include="parsing.hpp">
       <Filter>Header Files\manual mapping</Filter>
     </ClInclude>
-    <ClInclude Include="manual_map.hpp">
+    <ClInclude Include="mMap.hpp">
       <Filter>Header Files\manual mapping</Filter>
     </ClInclude>
     <ClInclude Include="load_lib.hpp">

@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "injector.hpp"
 #include "load_lib.hpp"
-#include "manual_map.hpp"
+#include "mMap.hpp"
 
 void PrintError(const char* msg, bool GetError)
 {
