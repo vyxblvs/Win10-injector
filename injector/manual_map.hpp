@@ -1,0 +1,1 @@
+bool ManualMapDll(const HANDLE process, const char* DllPath);
