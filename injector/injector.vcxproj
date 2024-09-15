@@ -149,6 +149,7 @@
     <ClInclude Include="load_lib.hpp" />
     <ClInclude Include="manual_map.hpp" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="process.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

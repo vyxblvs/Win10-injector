@@ -19,12 +19,15 @@
     <Filter Include="Source Files\LoadLibrary">
       <UniqueIdentifier>{aab891ff-f237-4c27-82ac-491c2e968eed}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\manual mapping">
+      <UniqueIdentifier>{d0f9967f-0852-4e25-8342-f8a2022a25a6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\LoadLibrary">
+      <UniqueIdentifier>{4acde2de-b59e-461c-89fa-8456d2c45261}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="process.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
@@ -39,22 +42,28 @@
     <ClCompile Include="file_parsing.cpp">
       <Filter>Source Files\manual mapping</Filter>
     </ClCompile>
+    <ClCompile Include="process.cpp">
+      <Filter>Source Files\manual mapping</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="file_parsing.hpp">
+      <Filter>Header Files\manual mapping</Filter>
+    </ClInclude>
+    <ClInclude Include="manual_map.hpp">
+      <Filter>Header Files\manual mapping</Filter>
+    </ClInclude>
     <ClInclude Include="load_lib.hpp">
+      <Filter>Header Files\LoadLibrary</Filter>
+    </ClInclude>
+    <ClInclude Include="injector.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="injector.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="manual_map.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="file_parsing.hpp">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="process.hpp">
+      <Filter>Header Files\manual mapping</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

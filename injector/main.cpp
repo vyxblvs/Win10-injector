@@ -45,16 +45,16 @@ HANDLE GetProcessHandle(const char* ProcessName)
 				return nullptr;
 			}
 
-			USHORT* pProcessMachine = nullptr;
-			USHORT* pNativeMachine = nullptr;
-			if (!IsWow64Process2(process, pProcessMachine, pNativeMachine)) // IGNORE WARNING - pProcessMachine/pNativeMachine are not derefed
+			USHORT ProcessMachine;
+			USHORT NativeMachine;
+			if (!IsWow64Process2(process, &ProcessMachine, &NativeMachine))
 			{
 				PrintError("IsWow64Process2");
 				CloseHandle(process);
 				return nullptr;
 			}
 			
-			if (*pProcessMachine == IMAGE_FILE_MACHINE_UNKNOWN)
+			if (ProcessMachine == IMAGE_FILE_MACHINE_UNKNOWN)
 			{
 				PrintError("INVALID PROCESS ARCHITECTURE", false);
 				CloseHandle(process);

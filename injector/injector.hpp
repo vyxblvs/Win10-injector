@@ -1,3 +1,5 @@
+#pragma once
+
 #define ManualMap    0
 #define _LoadLibrary 1
 
