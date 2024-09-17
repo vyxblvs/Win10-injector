@@ -20,12 +20,15 @@ struct module_data
 	std::string name;
 
 	bool ApiSet = false;
-	BYTE* ImageBase;
+	BYTE* ImageBase = nullptr;
 	IMAGE_NT_HEADERS32* NT_HEADERS;
 	IMAGE_SECTION_HEADER* sections;
 
-	bool IsLoaded; // indicates whether or not the module is already loaded within the target process
-	HMODULE RemoteHandle;
+	union
+	{
+		void* lpvRemoteBase;
+		DWORD RemoteBase;
+	};
 };
 
 bool ManualMapDll(const HANDLE process, const char* DllPath);

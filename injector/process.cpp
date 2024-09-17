@@ -25,6 +25,10 @@ bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 		}
 
 		buffer.push_back({});
-		LoadDLL(path, &buffer.back());
+
+		std::string& ModulePath = buffer.back().path;
+		ModulePath = path;
+
+		buffer.back().name = ModulePath.substr(ModulePath.find_last_of('\\') + 1);
 	}
 }

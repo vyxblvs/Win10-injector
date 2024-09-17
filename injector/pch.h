@@ -12,5 +12,6 @@
 
 // Standard headers
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
