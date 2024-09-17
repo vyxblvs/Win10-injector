@@ -24,6 +24,10 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	for (int i = 0; i < modules.size(); ++i)
 	{
+		if (modules.back().ApiSet == true) {
+			continue;
+		}
+
 		if (!GetDependencies(process, &modules.back(), modules, LoadedModules, modules.size() - 1)) {
 			return false;
 		}

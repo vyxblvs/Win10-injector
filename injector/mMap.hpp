@@ -19,6 +19,7 @@ struct module_data
 	std::string path;
 	std::string name;
 
+	bool ApiSet = false;
 	BYTE* ImageBase;
 	IMAGE_NT_HEADERS32* NT_HEADERS;
 	IMAGE_SECTION_HEADER* sections;

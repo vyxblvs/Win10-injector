@@ -47,6 +47,8 @@ bool IsAPIset(std::string ModuleName)
 {
 	// API Set naming conventions specified at https://learn.microsoft.com/en-us/windows/win32/apiindex/windows-apisets
 
+	ModuleName.erase(ModuleName.size() - 4); // removing .dll from the string
+
 	std::string NameStart = ModuleName.substr(0, 4);
 	if (_stricmp(NameStart.c_str(), "api-") != 0 && _stricmp(NameStart.c_str(), "ext-") != 0) {
 		return false;
@@ -73,71 +75,53 @@ bool IsAPIset(std::string ModuleName)
 	return true;
 }
 
-bool LocateModule(HANDLE process, std::string name, module_data& buffer)
+bool LocateModule(HANDLE process, const std::string name, module_data& buffer)
 {
-	// Checking known DLLs
+	// Checking if the module is an API set, retrieving it from Windows\SysWOW64\downlevel if so
+	// Once the injector is functional, the module location process will be updated to match the Windows DLL Loader
 
-	HKEY key;
-	if (RegOpenKey(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs", &key))
+	if (IsAPIset(name))
 	{
-		PrintError("RegOpenKey", false);
-		return false;
-	}
+		const std::string APIpath = "C:\\Windows\\SysWOW64\\downlevel\\" + name;
 
-	DWORD index = 0;
-	char DllName[256];
-	DWORD NameSz;
-	BYTE data[256];
-	DWORD DataSz;
-
-	name.erase(name.size() - 4, name.size());
-
-	while (true)
-	{
-		NameSz = sizeof(DllName);
-		DataSz = sizeof(data);
-		LONG result = RegEnumValueA(key, index, DllName, &NameSz, NULL, NULL, data, &DataSz);
-
-		if (result == ERROR_NO_MORE_ITEMS) {
-			break;
-		}
-		else if (result == ERROR_SUCCESS)
+		if (PathFileExistsA(APIpath.c_str())) 
 		{
-			if (_stricmp(name.c_str(), DllName) == 0)
-			{
-				name.insert(0, "C:\\Windows\\SysWOW64\\"); // need to get windows directory at runtime instead
-				name += ".dll";
-				return LoadDLL(name.c_str(), &buffer);
-			}
-
-			++index;
+			buffer.ApiSet = true;
+			return LoadDLL(APIpath.c_str(), &buffer);
 		}
 		else
 		{
-			PrintError("RegEnumValue", false);
+			PrintError("FAILED TO LOCATE API SET");
 			return false;
 		}
 	}
 
+	// Checking Windows\SysWOW64
+
+	std::string DllPath = "C:\\Windows\\SysWOW64\\" + name;
+	if (PathFileExistsA(DllPath.c_str())) {
+		return LoadDLL(DllPath.c_str(), &buffer);
+	}
+
 	// Checking target process folder
 
-	name += ".dll";
-
-	std::string ProcessDir(256, 0);
-	if (!QueryFullProcessImageNameA(process, 0, ProcessDir.data(), &DataSz))
+	DWORD sz = 256;
+	DllPath.clear();
+	DllPath.resize(sz);
+	if (!QueryFullProcessImageNameA(process, 0, DllPath.data(), &sz))
 	{
 		PrintError("QueryFullProcessImageNameA");
 		return false;
 	}
 	
-	ProcessDir.erase(ProcessDir.find_last_of('\\') + 1, ProcessDir.size());
-	ProcessDir += name;
+	DllPath.erase(DllPath.find_last_of('\\') + 1, DllPath.size());
+	DllPath += name;
 
-	if (PathFileExistsA(ProcessDir.c_str())) {
-		return LoadDLL(ProcessDir.c_str(), &buffer);
+	if (PathFileExistsA(DllPath.c_str())) {
+		return LoadDLL(DllPath.c_str(), &buffer);
 	}
 
-	
+	PrintError("FAILED TO LOCATE MODULE");
 	return false;
 }
 
@@ -155,12 +139,16 @@ bool GetDependencies(HANDLE process, module_data* target, std::vector<module_dat
 	{
 		auto name = ConvertRVA<const char*>(*target, ImportDir[i].Name, target->ImageBase);
 		
+		bool IsLoaded = false;
 		for (auto LoadedModule : LoadedModules)
 		{
-			if (_stricmp(LoadedModule.name.c_str(), name) == 0) {
-				continue; // module is already loaded in target process
+			if (_stricmp(LoadedModule.name.c_str(), name) == 0) 
+			{
+				IsLoaded = true;
+				break;
 			}
 		}
+		if (IsLoaded) continue;
 
 		buffer.push_back({});
 		target = &buffer[it];
