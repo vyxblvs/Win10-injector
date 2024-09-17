@@ -59,7 +59,9 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 			return false;
 		}
 
-		std::cout << "RELOCATED: " << std::hex << modules[i].RemoteBase << '\n';
+		if (!ResolveImports(modules[i], modules, LoadedModules)) {
+			return false;
+		}
 	}
 
 	return true;

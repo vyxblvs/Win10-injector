@@ -3,11 +3,22 @@
 #include "load_lib.hpp"
 #include "mMap.hpp"
 
-void PrintError(const char* msg, bool GetError)
+void PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
 {
-	std::cerr << "ERROR: " << msg;
-	if (GetError) std::cerr << " (" << GetLastError() << ")";
-	std::cerr << '\n';
+	if (ErrorMode == RVA_FAIL) {
+		std::cerr << "ERROR: FAILED TO CONVERT RVA (" << rvaDesc << ")\n";
+	}
+	else if (ErrorMode == GET_LAST_ERR) {
+		std::cerr << "ERROR: " << msg << " (" << GetLastError() << ")\n";
+	}
+	else {
+		std::cerr << "ERROR: " << msg << '\n';
+	}
+}
+
+void PrintErrorRVA(const char* rvaDesc) 
+{ 
+	PrintError(nullptr, RVA_FAIL, rvaDesc); 
 }
 
 HANDLE GetProcessHandle(const char* ProcessName)
