@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "injector.hpp"
-#include "load_lib.hpp"
+#include "LoadLib.hpp"
 
 bool LoadLibInject(const HANDLE process, const char* dll)
 {

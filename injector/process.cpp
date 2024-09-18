@@ -4,6 +4,66 @@
 #include "injector.hpp"
 #include "parsing.hpp"
 
+HANDLE GetProcessHandle(const char* ProcessName)
+{
+	const HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (snap == INVALID_HANDLE_VALUE)
+	{
+		PrintError("CreateToolhelp32Snapshot");
+		return nullptr;
+	}
+
+	PROCESSENTRY32 pe32;
+	pe32.dwSize = sizeof(PROCESSENTRY32);
+
+	if (!Process32First(snap, &pe32))
+	{
+		PrintError("Process32First");
+		CloseHandle(snap);
+		return nullptr;
+	}
+
+	wchar_t ProcessNameW[MAX_PATH];
+	mbstowcs_s(nullptr, ProcessNameW, ProcessName, MAX_PATH);
+
+	do
+	{
+		if (_wcsicmp(ProcessNameW, pe32.szExeFile) == 0)
+		{
+			CloseHandle(snap);
+			constexpr DWORD dwDesiredAccess = PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE;
+			const HANDLE process = OpenProcess(dwDesiredAccess, false, pe32.th32ProcessID);
+
+			if (!process) {
+				PrintError("OpenProcess");
+				return nullptr;
+			}
+
+			USHORT ProcessMachine;
+			USHORT NativeMachine;
+			if (!IsWow64Process2(process, &ProcessMachine, &NativeMachine))
+			{
+				PrintError("IsWow64Process2");
+				CloseHandle(process);
+				return nullptr;
+			}
+
+			if (ProcessMachine == IMAGE_FILE_MACHINE_UNKNOWN)
+			{
+				PrintError("INVALID PROCESS ARCHITECTURE", false);
+				CloseHandle(process);
+				return nullptr;
+			}
+
+			return process;
+		}
+
+	} while (Process32Next(snap, &pe32));
+
+	CloseHandle(snap);
+	return nullptr;
+}
+
 bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 {
 	DWORD sz;

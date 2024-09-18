@@ -36,7 +36,7 @@
     <ClCompile Include="mMap.cpp">
       <Filter>Source Files\manual mapping</Filter>
     </ClCompile>
-    <ClCompile Include="load_lib.cpp">
+    <ClCompile Include="LoadLib.cpp">
       <Filter>Source Files\LoadLibrary</Filter>
     </ClCompile>
     <ClCompile Include="parsing.cpp">
@@ -53,7 +53,7 @@
     <ClInclude Include="mMap.hpp">
       <Filter>Header Files\manual mapping</Filter>
     </ClInclude>
-    <ClInclude Include="load_lib.hpp">
+    <ClInclude Include="LoadLib.hpp">
       <Filter>Header Files\LoadLibrary</Filter>
     </ClInclude>
     <ClInclude Include="injector.hpp">

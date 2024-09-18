@@ -293,8 +293,9 @@ bool ResolveForwarder(const char* ImportName, std::string& buffer, module_data*&
 				return false;
 			}
 
+			// Its important that you call find_last_of rather than find_first_of. Some API sets will include ".dll" in the forwarder name
 			buffer = ForwarderPtr;
-			buffer.erase(0, buffer.find_first_of('.') + 1);
+			buffer.erase(0, buffer.find_last_of('.') + 1);
 
 			std::string ForwarderModule = ForwarderPtr;
 			ForwarderModule.erase(ForwarderModule.find_first_of('.'), ForwarderModule.length());
@@ -311,6 +312,11 @@ bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& mod
 {
 	const IMAGE_DATA_DIRECTORY ImportTable = GET_DATA_DIR(ModuleData, IMAGE_DIRECTORY_ENTRY_IMPORT);
 	auto ImportDir = ConvertRVA<const IMAGE_IMPORT_DESCRIPTOR*>(ModuleData, ImportTable.VirtualAddress, ModuleData.ImageBase);
+	if (!ImportDir)
+	{
+		PrintErrorRVA("ImportTable.VirtualAddress");
+		return false;
+	}
 
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
@@ -359,6 +365,8 @@ bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& mod
 				if (!ResolveForwarder(fnName, buffer, ImportedModule, modules, LoadedModules)) {
 					return false;
 				}
+
+				std::cout << fnName << " -> " << buffer << '\n';
 			}
 			else
 			{

@@ -1,7 +1,10 @@
 #include "pch.h"
-#include "injector.hpp"
-#include "load_lib.hpp"
 #include "mMap.hpp"
+#include "injector.hpp"
+#include "LoadLib.hpp"
+#include "process.hpp"
+
+// Error handling is to be cleaned up once manual mapping is functional, especially ConvertRVA errors.
 
 void PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
 {
@@ -19,66 +22,6 @@ void PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
 void PrintErrorRVA(const char* rvaDesc) 
 { 
 	PrintError(nullptr, RVA_FAIL, rvaDesc); 
-}
-
-HANDLE GetProcessHandle(const char* ProcessName)
-{
-	const HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (snap == INVALID_HANDLE_VALUE)
-	{
-		PrintError("CreateToolhelp32Snapshot");
-		return nullptr;
-	}
-
-	PROCESSENTRY32 pe32;
-	pe32.dwSize = sizeof(PROCESSENTRY32);
-
-	if (!Process32First(snap, &pe32))
-	{
-		PrintError("Process32First");
-		CloseHandle(snap);
-		return nullptr;
-	}
-
-	wchar_t ProcessNameW[MAX_PATH];
-	mbstowcs_s(nullptr, ProcessNameW, ProcessName, MAX_PATH);
-
-	do 
-	{
-		if (_wcsicmp(ProcessNameW, pe32.szExeFile) == 0)
-		{
-			CloseHandle(snap);
-			constexpr DWORD dwDesiredAccess = PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE;
-			const HANDLE process = OpenProcess(dwDesiredAccess, false, pe32.th32ProcessID);
-
-			if (process == NULL) {
-				PrintError("OpenProcess");
-				return nullptr;
-			}
-
-			USHORT ProcessMachine;
-			USHORT NativeMachine;
-			if (!IsWow64Process2(process, &ProcessMachine, &NativeMachine))
-			{
-				PrintError("IsWow64Process2");
-				CloseHandle(process);
-				return nullptr;
-			}
-			
-			if (ProcessMachine == IMAGE_FILE_MACHINE_UNKNOWN)
-			{
-				PrintError("INVALID PROCESS ARCHITECTURE", false);
-				CloseHandle(process);
-				return nullptr;
-			}
-
-			return process;
-		}
-
-	} while (Process32Next(snap, &pe32));
-
-	CloseHandle(snap);
-	return nullptr;
 }
 
 // THIS INJECTOR IS MADE FOR x86 PROCESSES/DLLS
