@@ -119,8 +119,6 @@ bool MapDLL(HANDLE process, module_data& dll)
 			PrintError("FAILED TO MAP SECTIONS", GET_LAST_ERR);
 			return false;
 		}
-
-		dll.RemoteSections.emplace_back(SectionBuffer);
 	}
 
 	return true;

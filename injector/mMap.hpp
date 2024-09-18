@@ -23,12 +23,12 @@ struct module_data
 	BYTE* ImageBase = nullptr;
 	IMAGE_NT_HEADERS32* NT_HEADERS;
 	IMAGE_SECTION_HEADER* sections;
-	std::vector<void*> RemoteSections;
 
 	union
 	{
 		void* lpvRemoteBase;
 		DWORD RemoteBase;
+		void* EntryPoint;
 	};
 };
 

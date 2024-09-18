@@ -58,7 +58,9 @@ bool IsAPIset(std::string ModuleName)
 {
 	// API Set naming conventions specified at https://learn.microsoft.com/en-us/windows/win32/apiindex/windows-apisets
 
-	ModuleName.erase(ModuleName.size() - 4); // removing .dll from the string
+	if (ModuleName.substr(ModuleName.size() - 4) == ".dll") {
+		ModuleName.erase(ModuleName.size() - 4); // removing .dll from the string
+	}
 
 	std::string NameStart = ModuleName.substr(0, 4);
 	if (_stricmp(NameStart.c_str(), "api-") != 0 && _stricmp(NameStart.c_str(), "ext-") != 0) {
@@ -241,75 +243,7 @@ module_data* FindModule(const char* name, std::vector<module_data>& modules, std
 	return nullptr;
 }
 
-module_data* ResolveForwarder(const char* ImportName, std::string& buffer, module_data* ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
-{
-	BYTE* ImageBase = ModuleData->ImageBase;
-	const IMAGE_DATA_DIRECTORY ExportDir = PGET_DATA_DIR(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
-
-	auto ExportTable = ConvertRVA<const IMAGE_EXPORT_DIRECTORY*>(*ModuleData, ExportDir.VirtualAddress, ImageBase);
-	if (!ExportTable)
-	{
-		PrintErrorRVA("ExportDir.VirtualAddress");
-		return nullptr;
-	}
-
-	auto NameTable = ConvertRVA<DWORD*>(*ModuleData, ExportTable->AddressOfNames, ImageBase);
-	if (!NameTable)
-	{
-		PrintErrorRVA("ExportTable->AddressOfNames");
-		return nullptr;
-	}
-
-	auto OrdinalTable = ConvertRVA<WORD*>(*ModuleData, ExportTable->AddressOfNameOrdinals, ModuleData->ImageBase);
-	if (!OrdinalTable)
-	{
-		PrintErrorRVA("ExportTable->AddressOfNameOrdinals");
-		return nullptr;
-	}
-
-	// Export Address Table
-	auto EAT = ConvertRVA<DWORD*>(*ModuleData, ExportTable->AddressOfFunctions, ModuleData->ImageBase);
-	if (!EAT)
-	{
-		PrintErrorRVA("ExportTable->AddressOfFunctions");
-		return nullptr;
-	}
-
-	for (int i = 0; i < ExportTable->NumberOfFunctions; ++i)
-	{
-		auto ExportName = ConvertRVA<const char*>(*ModuleData, NameTable[i], ImageBase);
-		if (!ExportName)
-		{
-			PrintErrorRVA("NameTable[i]");
-			return nullptr;
-		}
-
-		if (_stricmp(ImportName, ExportName) == 0)
-		{
-			const char* ForwarderPtr = ConvertRVA<const char*>(*ModuleData, EAT[OrdinalTable[i]], ModuleData->ImageBase);
-			if (!ForwarderPtr)
-			{
-				PrintErrorRVA("EAT[OrdinalTable[i]]");
-				return nullptr;
-			}
-
-			// Its important that you call find_last_of rather than find_first_of. Some API sets will include ".dll" in the forwarder name
-			buffer = ForwarderPtr;
-			buffer.erase(0, buffer.find_last_of('.') + 1);
-
-			std::string ForwarderModule = ForwarderPtr;
-			ForwarderModule.erase(ForwarderModule.find_first_of('.'), ForwarderModule.length());
-			ForwarderModule += ".dll";
-
-			return FindModule(ForwarderModule.c_str(), modules, LoadedModules);
-		}
-	}
-
-	PrintError("FAILED TO RESOLVE FORWARDER", IGNORE_ERR);
-	return nullptr;
-}
-
-DWORD* GetExportAddress(const char* TargetExport, const module_data& ModuleData)
+DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>&LoadedModules)
 {
 	// TODO: Pass export information to ResolveForwarder. ResolveImports shouldnt call ResolveForwarder
 
@@ -320,21 +254,21 @@ DWORD* GetExportAddress(const char* TargetExport, const module_data& ModuleData)
 	if (!ExportTable)
 	{
 		PrintErrorRVA("ExportDir.VirtualAddress");
-		return nullptr;
+		return NULL;
 	}
 
 	auto NameTable = ConvertRVA<DWORD*>(ModuleData, ExportTable->AddressOfNames, ImageBase);
 	if (!NameTable)
 	{
 		PrintErrorRVA("ExportTable->AddressOfNames");
-		return nullptr;
+		return NULL;
 	}
 
 	auto OrdinalTable = ConvertRVA<WORD*>(ModuleData, ExportTable->AddressOfNameOrdinals, ModuleData.ImageBase);
 	if (!OrdinalTable)
 	{
 		PrintErrorRVA("ExportTable->AddressOfNameOrdinals");
-		return nullptr;
+		return NULL;
 	}
 
 	// Export Address Table
@@ -342,7 +276,7 @@ DWORD* GetExportAddress(const char* TargetExport, const module_data& ModuleData)
 	if (!EAT)
 	{
 		PrintErrorRVA("ExportTable->AddressOfFunctions");
-		return nullptr;
+		return NULL;
 	}
 
 	for (int i = 0; i < ExportTable->NumberOfFunctions; ++i)
@@ -351,7 +285,7 @@ DWORD* GetExportAddress(const char* TargetExport, const module_data& ModuleData)
 		if (!ExportName)
 		{
 			PrintErrorRVA("NameTable[i]");
-			return nullptr;
+			return NULL;
 		}
 
 		if (_stricmp(TargetExport, ExportName) == 0)
@@ -365,24 +299,41 @@ DWORD* GetExportAddress(const char* TargetExport, const module_data& ModuleData)
 				if (!ForwarderName)
 				{
 					PrintErrorRVA("EAT[OrdinalTable[i]]<FORWARDER>");
-					return nullptr;
+					return NULL;
 				}
-
 				
+				std::string ForwarderModuleStr, ForwarderFn = ForwarderName;
+				ForwarderModuleStr = ForwarderFn.substr(0, ForwarderFn.find_first_of('.')) + ".dll";
+				ForwarderFn.erase(0, ForwarderFn.find_last_of('.') + 1);
+
+				// Forwarders can lead to an API set that leads right back, which is what will be assumed for now
+				if (!IsAPIset(ForwarderModuleStr))
+				{
+					module_data* ForwarderModule = FindModule(ForwarderModuleStr.c_str(), modules, LoadedModules);
+					if (!ForwarderModule)
+					{
+						PrintError("FAILED TO LOCATE MODULE", IGNORE_ERR);
+						return NULL;
+					}
+
+					// Forwarders may forward to functions from modules that werent 
+					if (!ForwarderModule->ImageBase && !LoadDLL(ForwarderModule->path.c_str(), ForwarderModule)) {
+						return NULL;
+					}
+
+					return GetExportAddress(ForwarderFn.c_str(), *ForwarderModule, modules, LoadedModules);
+				}
 			}
 
-			auto fnAddress = ConvertRVA<DWORD*>(ModuleData, fnRVA, reinterpret_cast<BYTE*>(ModuleData.lpvRemoteBase), true);
-
-			//std::cout << ExportName << ": 0x" << std::hex << (DWORD)fnAddress << " | 0x" << EAT[OrdinalTable[i]] << std::endl;
-			return fnAddress;
+			return ConvertRVA<DWORD>(ModuleData, fnRVA, reinterpret_cast<BYTE*>(ModuleData.lpvRemoteBase), true);
 		}
 	}
 
 	PrintError("FAILED TO GET EXPORT ADDRESS", IGNORE_ERR);
-	return nullptr;
+	return NULL;
 }
 
-bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
+bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
 {
 	const IMAGE_DATA_DIRECTORY ImportTable = GET_DATA_DIR(ModuleData, IMAGE_DIRECTORY_ENTRY_IMPORT);
 	auto ImportDir = ConvertRVA<const IMAGE_IMPORT_DESCRIPTOR*>(ModuleData, ImportTable.VirtualAddress, ModuleData.ImageBase);
@@ -395,7 +346,6 @@ bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& mod
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
 		auto ModuleName = ConvertRVA<const char*>(ModuleData, ImportDir[i].Name, ModuleData.ImageBase);
-		std::cout << '\n' << ModuleName << '\n';
 
 		module_data* ImportedModule = FindModule(ModuleName, modules, LoadedModules);
 		if (!ImportedModule)
@@ -429,24 +379,17 @@ bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& mod
 				return false;
 			}
 
-			const char* fnName = ImportByName->Name;
-			DWORD fnAddress = NULL;
-
-			if (ImportedModule->IsAPIset)
-			{
-				std::string ResolvedFn;
-				const module_data* ForwarderModule = ResolveForwarder(fnName, ResolvedFn, ImportedModule, modules, LoadedModules);
-				if (!ForwarderModule) {
-					return false;
-				}
+			const DWORD fnAddress = GetExportAddress(ImportByName->Name, *ImportedModule, modules, LoadedModules);
+			if (!fnAddress) {
+				return false;
 			}
-			else
-			{
-				if (!GetExportAddress(fnName, *ImportedModule)) {
-					return false;
-				}
-			}
+			
+			IAT[fn].u1.AddressOfData = fnAddress;
 		}
+	}
+
+	if (ModuleData.name == modules[0].name) {
+		ModuleData.EntryPoint = ConvertRVA<void*>(ModuleData, GET_ENTRY_POINT(ModuleData), reinterpret_cast<BYTE*>(ModuleData.lpvRemoteBase), true);
 	}
 
 	return true;

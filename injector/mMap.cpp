@@ -30,7 +30,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		}
 	}
 
-	// Mapping modules (must be done before import resolution)
+	// Allocating memory for modules
 
 	for (module_data& data : modules)
 	{
@@ -43,10 +43,6 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		if (!data.lpvRemoteBase)
 		{
 			PrintError("VirtualAllocEx[lpvRemoteBase]");
-			return false;
-		}
-
-		if (!MapDLL(process, data)) {
 			return false;
 		}
 	}
@@ -63,19 +59,13 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 			return false;
 		}
 
+		// ResolveImports will also get the EP of the target module
 		if (!ResolveImports(data, modules, LoadedModules)) {
 			return false;
 		}
 	}
 
-	// Freeing images & modules data
-
-	for (module_data& data : modules)
-	{
-		delete[] data.ImageBase;
-	} 
-
-	modules.clear();
+	// Freeing LoadedModules
 
 	for (module_data& data : LoadedModules)
 	{
@@ -85,6 +75,28 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 	}
 
 	LoadedModules.clear();
+
+	// Mapping modules
+
+	for (module_data& data : modules)
+	{
+		if (data.IsAPIset) {
+			continue;
+		}
+
+		if (!MapDLL(process, data)) {
+			return false;
+		}
+	}
+
+	// Freeing modules
+
+	for (module_data& data : modules)
+	{
+		delete[] data.ImageBase;
+	} 
+
+	modules.clear();
 
 	return true;
 } 
