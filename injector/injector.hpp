@@ -1,5 +1,13 @@
 #pragma once
 
+/*
+* TODO
+* -	TLS execution
+* - Thread hijacking
+* - Improved error handling
+* - Improved code readability
+*/
+
 // Macros
 
 #define ManualMap    0

@@ -85,10 +85,43 @@ bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 		}
 
 		buffer.push_back({});
+		module_data& data = buffer.back();
 
-		std::string& ModulePath = buffer.back().path;
+		std::string& ModulePath = data.path;
 		ModulePath = path;
 
-		buffer.back().name = ModulePath.substr(ModulePath.find_last_of('\\') + 1);
+		data.name = ModulePath.substr(ModulePath.find_last_of('\\') + 1);
+		data.lpvRemoteBase = handles[i];
 	}
+
+	return true;
+}
+
+bool MapDLL(HANDLE process, module_data& dll)
+{
+	const IMAGE_SECTION_HEADER* sh = dll.sections;
+
+	// Mapping PE headers
+	if (!WriteProcessMemory(process, dll.lpvRemoteBase, dll.ImageBase, sh[0].PointerToRawData, nullptr))
+	{
+		PrintError("FAILED TO MAP PE HEADERS", GET_LAST_ERR);
+		return false;
+	}
+
+	// Mapping sections
+	for (int i = 0; i < dll.NT_HEADERS->FileHeader.NumberOfSections; ++i)
+	{
+		void* section = dll.ImageBase + sh[i].PointerToRawData;
+		void* SectionBuffer = reinterpret_cast<BYTE*>(dll.RemoteBase) + sh[i].VirtualAddress;
+
+		if (!WriteProcessMemory(process, SectionBuffer, section, sh[i].Misc.VirtualSize, nullptr))
+		{
+			PrintError("FAILED TO MAP SECTIONS", GET_LAST_ERR);
+			return false;
+		}
+
+		dll.RemoteSections.emplace_back(SectionBuffer);
+	}
+
+	return true;
 }

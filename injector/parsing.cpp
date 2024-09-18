@@ -3,7 +3,7 @@
 #include "mMap.hpp"
 #include "parsing.hpp"
 
-template <typename ret> auto ConvertRVA(const module_data& image, DWORD RVA, BYTE* ModuleBase)->ret
+template <typename ret> auto ConvertRVA(const module_data& image, DWORD RVA, BYTE* ModuleBase, bool virt = false)->ret
 {
 	// RVA/VA explanations: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#general-concepts
 
@@ -15,8 +15,9 @@ template <typename ret> auto ConvertRVA(const module_data& image, DWORD RVA, BYT
 
 		if (RVA >= SectionVA && RVA < (SectionVA + sh[i].SizeOfRawData))
 		{
-			const DWORD offset = sh[i].PointerToRawData + (RVA - SectionVA);
-			return reinterpret_cast<ret>(ModuleBase + offset);
+			const DWORD SectionOffset = virt ? sh[i].VirtualAddress : sh[i].PointerToRawData;
+			const DWORD AddressOffset = SectionOffset + (RVA - SectionVA);
+			return reinterpret_cast<ret>(ModuleBase + AddressOffset);
 		}
 	}
 
@@ -96,7 +97,7 @@ bool LocateModule(HANDLE process, const std::string name, module_data& buffer)
 
 		if (PathFileExistsA(APIpath.c_str())) 
 		{
-			buffer.ApiSet = true;
+			buffer.IsAPIset = true;
 			return LoadDLL(APIpath.c_str(), &buffer);
 		}
 		else
@@ -160,7 +161,6 @@ bool GetDependencies(HANDLE process, module_data* target, std::vector<module_dat
 			if (_stricmp(LoadedModule.name.c_str(), name) == 0) 
 			{
 				// If the module is already loaded in the target process but unloaded modules depend on it the image is to be loaded locally
-
 				if (!LoadedModule.ImageBase && !LoadDLL(LoadedModule.path.c_str(), &LoadedModule)) {
 					return false;
 				}
@@ -241,7 +241,7 @@ module_data* FindModule(const char* name, std::vector<module_data>& modules, std
 	return nullptr;
 }
 
-bool ResolveForwarder(const char* ImportName, std::string& buffer, module_data*& ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
+module_data* ResolveForwarder(const char* ImportName, std::string& buffer, module_data* ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
 {
 	BYTE* ImageBase = ModuleData->ImageBase;
 	const IMAGE_DATA_DIRECTORY ExportDir = PGET_DATA_DIR(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
@@ -250,21 +250,21 @@ bool ResolveForwarder(const char* ImportName, std::string& buffer, module_data*&
 	if (!ExportTable)
 	{
 		PrintErrorRVA("ExportDir.VirtualAddress");
-		return false;
+		return nullptr;
 	}
 
 	auto NameTable = ConvertRVA<DWORD*>(*ModuleData, ExportTable->AddressOfNames, ImageBase);
 	if (!NameTable)
 	{
 		PrintErrorRVA("ExportTable->AddressOfNames");
-		return false;
+		return nullptr;
 	}
 
 	auto OrdinalTable = ConvertRVA<WORD*>(*ModuleData, ExportTable->AddressOfNameOrdinals, ModuleData->ImageBase);
 	if (!OrdinalTable)
 	{
 		PrintErrorRVA("ExportTable->AddressOfNameOrdinals");
-		return false;
+		return nullptr;
 	}
 
 	// Export Address Table
@@ -272,7 +272,7 @@ bool ResolveForwarder(const char* ImportName, std::string& buffer, module_data*&
 	if (!EAT)
 	{
 		PrintErrorRVA("ExportTable->AddressOfFunctions");
-		return false;
+		return nullptr;
 	}
 
 	for (int i = 0; i < ExportTable->NumberOfFunctions; ++i)
@@ -281,7 +281,7 @@ bool ResolveForwarder(const char* ImportName, std::string& buffer, module_data*&
 		if (!ExportName)
 		{
 			PrintErrorRVA("NameTable[i]");
-			return false;
+			return nullptr;
 		}
 
 		if (_stricmp(ImportName, ExportName) == 0)
@@ -290,7 +290,7 @@ bool ResolveForwarder(const char* ImportName, std::string& buffer, module_data*&
 			if (!ForwarderPtr)
 			{
 				PrintErrorRVA("EAT[OrdinalTable[i]]");
-				return false;
+				return nullptr;
 			}
 
 			// Its important that you call find_last_of rather than find_first_of. Some API sets will include ".dll" in the forwarder name
@@ -301,11 +301,85 @@ bool ResolveForwarder(const char* ImportName, std::string& buffer, module_data*&
 			ForwarderModule.erase(ForwarderModule.find_first_of('.'), ForwarderModule.length());
 			ForwarderModule += ".dll";
 
-			break;
+			return FindModule(ForwarderModule.c_str(), modules, LoadedModules);
 		}
 	}
 
-	return true;
+	PrintError("FAILED TO RESOLVE FORWARDER", IGNORE_ERR);
+	return nullptr;
+}
+
+DWORD* GetExportAddress(const char* TargetExport, const module_data& ModuleData)
+{
+	// TODO: Pass export information to ResolveForwarder. ResolveImports shouldnt call ResolveForwarder
+
+	BYTE* ImageBase = ModuleData.ImageBase;
+	const IMAGE_DATA_DIRECTORY ExportDir = GET_DATA_DIR(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
+
+	auto ExportTable = ConvertRVA<const IMAGE_EXPORT_DIRECTORY*>(ModuleData, ExportDir.VirtualAddress, ImageBase);
+	if (!ExportTable)
+	{
+		PrintErrorRVA("ExportDir.VirtualAddress");
+		return nullptr;
+	}
+
+	auto NameTable = ConvertRVA<DWORD*>(ModuleData, ExportTable->AddressOfNames, ImageBase);
+	if (!NameTable)
+	{
+		PrintErrorRVA("ExportTable->AddressOfNames");
+		return nullptr;
+	}
+
+	auto OrdinalTable = ConvertRVA<WORD*>(ModuleData, ExportTable->AddressOfNameOrdinals, ModuleData.ImageBase);
+	if (!OrdinalTable)
+	{
+		PrintErrorRVA("ExportTable->AddressOfNameOrdinals");
+		return nullptr;
+	}
+
+	// Export Address Table
+	auto EAT = ConvertRVA<DWORD*>(ModuleData, ExportTable->AddressOfFunctions, ModuleData.ImageBase);
+	if (!EAT)
+	{
+		PrintErrorRVA("ExportTable->AddressOfFunctions");
+		return nullptr;
+	}
+
+	for (int i = 0; i < ExportTable->NumberOfFunctions; ++i)
+	{
+		auto ExportName = ConvertRVA<const char*>(ModuleData, NameTable[i], ImageBase);
+		if (!ExportName)
+		{
+			PrintErrorRVA("NameTable[i]");
+			return nullptr;
+		}
+
+		if (_stricmp(TargetExport, ExportName) == 0)
+		{
+			const DWORD fnRVA = EAT[OrdinalTable[i]];
+
+			// If fnAddress is within the export section, its a forwarder
+			if (fnRVA >= ExportDir.VirtualAddress && fnRVA < ExportDir.VirtualAddress + ExportDir.Size)
+			{
+				const char* ForwarderName = ConvertRVA<const char*>(ModuleData, fnRVA, ModuleData.ImageBase);
+				if (!ForwarderName)
+				{
+					PrintErrorRVA("EAT[OrdinalTable[i]]<FORWARDER>");
+					return nullptr;
+				}
+
+				
+			}
+
+			auto fnAddress = ConvertRVA<DWORD*>(ModuleData, fnRVA, reinterpret_cast<BYTE*>(ModuleData.lpvRemoteBase), true);
+
+			//std::cout << ExportName << ": 0x" << std::hex << (DWORD)fnAddress << " | 0x" << EAT[OrdinalTable[i]] << std::endl;
+			return fnAddress;
+		}
+	}
+
+	PrintError("FAILED TO GET EXPORT ADDRESS", IGNORE_ERR);
+	return nullptr;
 }
 
 bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
@@ -321,6 +395,7 @@ bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& mod
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
 		auto ModuleName = ConvertRVA<const char*>(ModuleData, ImportDir[i].Name, ModuleData.ImageBase);
+		std::cout << '\n' << ModuleName << '\n';
 
 		module_data* ImportedModule = FindModule(ModuleName, modules, LoadedModules);
 		if (!ImportedModule)
@@ -329,11 +404,8 @@ bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& mod
 			return false;
 		}
 
-		if (ImportedModule->ApiSet) 
-			std::cout << '\n' << ImportedModule->name << '\n';
-
 		// Import Address Table
-		auto IAT = ConvertRVA<const IMAGE_THUNK_DATA32*>(ModuleData, ImportDir[i].FirstThunk, ModuleData.ImageBase);
+		auto IAT = ConvertRVA<IMAGE_THUNK_DATA32*>(ModuleData, ImportDir[i].FirstThunk, ModuleData.ImageBase);
 		if (!IAT)
 		{
 			PrintErrorRVA("ImportDir[i].FirstThunk");
@@ -358,19 +430,21 @@ bool ResolveImports(const module_data& ModuleData, std::vector<module_data>& mod
 			}
 
 			const char* fnName = ImportByName->Name;
+			DWORD fnAddress = NULL;
 
-			if (ImportedModule->ApiSet == true)
+			if (ImportedModule->IsAPIset)
 			{
-				std::string buffer;
-				if (!ResolveForwarder(fnName, buffer, ImportedModule, modules, LoadedModules)) {
+				std::string ResolvedFn;
+				const module_data* ForwarderModule = ResolveForwarder(fnName, ResolvedFn, ImportedModule, modules, LoadedModules);
+				if (!ForwarderModule) {
 					return false;
 				}
-
-				std::cout << fnName << " -> " << buffer << '\n';
 			}
 			else
 			{
-
+				if (!GetExportAddress(fnName, *ImportedModule)) {
+					return false;
+				}
 			}
 		}
 	}

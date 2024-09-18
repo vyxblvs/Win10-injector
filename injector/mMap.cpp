@@ -21,48 +21,70 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	for (int i = 0; i < modules.size(); ++i)
 	{
-		if (modules.back().ApiSet == true) {
+		if (modules[i].IsAPIset) {
 			continue;
 		}
 
-		if (!GetDependencies(process, &modules.back(), modules, LoadedModules, modules.size() - 1)) {
+		if (!GetDependencies(process, &modules[i], modules, LoadedModules, i)) {
 			return false;
 		}
 	}
 
-	// Allocating memory in target process for mapping
+	// Mapping modules (must be done before import resolution)
 
-	for (int i = 0; i < modules.size(); ++i)
+	for (module_data& data : modules)
 	{
-		if (modules[i].ApiSet == true) {
+		if (data.IsAPIset) {
 			continue;
 		}
 
-		const size_t sz = modules[i].NT_HEADERS->OptionalHeader.SizeOfImage;
-		modules[i].lpvRemoteBase = VirtualAllocEx(process, nullptr, sz, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE); 
-		if (!modules[i].lpvRemoteBase)
+		const size_t sz = data.NT_HEADERS->OptionalHeader.SizeOfImage;
+		data.lpvRemoteBase = VirtualAllocEx(process, nullptr, sz, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE); 
+		if (!data.lpvRemoteBase)
 		{
 			PrintError("VirtualAllocEx[lpvRemoteBase]");
+			return false;
+		}
+
+		if (!MapDLL(process, data)) {
 			return false;
 		}
 	}
 
 	// Applying relocation and resolving imports
 
-	for (int i = 0; i < modules.size(); ++i)
+	for (module_data& data : modules)
 	{
-		if (modules[i].ApiSet == true) {
+		if (data.IsAPIset) {
 			continue;
 		}
 
-		if (!ApplyRelocation(modules[i])) {
+		if (!ApplyRelocation(data)) {
 			return false;
 		}
 
-		if (!ResolveImports(modules[i], modules, LoadedModules)) {
+		if (!ResolveImports(data, modules, LoadedModules)) {
 			return false;
 		}
 	}
+
+	// Freeing images & modules data
+
+	for (module_data& data : modules)
+	{
+		delete[] data.ImageBase;
+	} 
+
+	modules.clear();
+
+	for (module_data& data : LoadedModules)
+	{
+		if (data.ImageBase) {
+			delete[] data.ImageBase;
+		}
+	}
+
+	LoadedModules.clear();
 
 	return true;
 } 
