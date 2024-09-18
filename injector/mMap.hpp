@@ -28,8 +28,9 @@ struct module_data
 	{
 		void* lpvRemoteBase;
 		DWORD RemoteBase;
-		void* EntryPoint;
 	};
+
+	void* EntryPoint;
 };
 
 bool ManualMapDll(const HANDLE process, const char* DllPath);

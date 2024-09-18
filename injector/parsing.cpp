@@ -3,7 +3,7 @@
 #include "mMap.hpp"
 #include "parsing.hpp"
 
-template <typename ret> auto ConvertRVA(const module_data& image, DWORD RVA, BYTE* ModuleBase, bool virt = false)->ret
+template <typename ret, typename ptr> auto ConvertRVA(const module_data& image, DWORD RVA, ptr ModuleBase, bool virt = false) -> ret
 {
 	// RVA/VA explanations: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#general-concepts
 
@@ -17,7 +17,7 @@ template <typename ret> auto ConvertRVA(const module_data& image, DWORD RVA, BYT
 		{
 			const DWORD SectionOffset = virt ? sh[i].VirtualAddress : sh[i].PointerToRawData;
 			const DWORD AddressOffset = SectionOffset + (RVA - SectionVA);
-			return reinterpret_cast<ret>(ModuleBase + AddressOffset);
+			return reinterpret_cast<ret>(reinterpret_cast<BYTE*>(ModuleBase) + AddressOffset);
 		}
 	}
 
@@ -245,8 +245,6 @@ module_data* FindModule(const char* name, std::vector<module_data>& modules, std
 
 DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>&LoadedModules)
 {
-	// TODO: Pass export information to ResolveForwarder. ResolveImports shouldnt call ResolveForwarder
-
 	BYTE* ImageBase = ModuleData.ImageBase;
 	const IMAGE_DATA_DIRECTORY ExportDir = GET_DATA_DIR(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
 
@@ -325,7 +323,7 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 				}
 			}
 
-			return ConvertRVA<DWORD>(ModuleData, fnRVA, reinterpret_cast<BYTE*>(ModuleData.lpvRemoteBase), true);
+			return ConvertRVA<DWORD>(ModuleData, fnRVA, ModuleData.RemoteBase, true);
 		}
 	}
 
@@ -389,7 +387,7 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 	}
 
 	if (ModuleData.name == modules[0].name) {
-		ModuleData.EntryPoint = ConvertRVA<void*>(ModuleData, GET_ENTRY_POINT(ModuleData), reinterpret_cast<BYTE*>(ModuleData.lpvRemoteBase), true);
+		ModuleData.EntryPoint = ConvertRVA<void*>(ModuleData, GET_ENTRY_POINT(ModuleData), ModuleData.RemoteBase, true);
 	}
 
 	return true;
