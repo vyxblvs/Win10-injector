@@ -6,8 +6,7 @@
 
 #define GET_DATA_DIR(data, dir) data.NT_HEADERS->OptionalHeader.DataDirectory[dir]
 
-#define GET_ENTRY_POINT(data) data.NT_HEADERS->OptionalHeader.AddressOfEntryPoint
-
+#define GET_EP(data) data.NT_HEADERS->OptionalHeader.AddressOfEntryPoint
 
 // Forward Declarations
 

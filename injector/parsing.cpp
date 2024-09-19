@@ -205,7 +205,7 @@ bool ApplyRelocation(const module_data& ModuleData)
 		auto entry = reinterpret_cast<const WORD*>(RelocTable) + 4;
 		const size_t BlockSize = (RelocTable->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(WORD);
 
-		for (size_t i = 0; i < BlockSize; ++i)
+		for (size_t i = 0; i < BlockSize && entry[i]; ++i)
 		{
 			const DWORD RVA = (entry[i] % 0x1000) + RelocTable->VirtualAddress;
 			auto RelocAddress = ConvertRVA<DWORD*>(ModuleData, RVA, ModuleData.ImageBase);
@@ -345,6 +345,8 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 	{
 		auto ModuleName = ConvertRVA<const char*>(ModuleData, ImportDir[i].Name, ModuleData.ImageBase);
 
+		std::cout << '\n' << ModuleData.name << " -> " << ModuleName << '\n';
+
 		module_data* ImportedModule = FindModule(ModuleName, modules, LoadedModules);
 		if (!ImportedModule)
 		{
@@ -381,13 +383,11 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 			if (!fnAddress) {
 				return false;
 			}
+
+			std::cout << "- " << ImportByName->Name << " -> 0x" << std::hex << std::uppercase << fnAddress << std::endl;
 			
 			IAT[fn].u1.AddressOfData = fnAddress;
 		}
-	}
-
-	if (ModuleData.name == modules[0].name) {
-		ModuleData.EntryPoint = ConvertRVA<void*>(ModuleData, GET_ENTRY_POINT(ModuleData), ModuleData.RemoteBase, true);
 	}
 
 	return true;

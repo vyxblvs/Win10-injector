@@ -39,7 +39,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		}
 
 		const size_t sz = data.NT_HEADERS->OptionalHeader.SizeOfImage;
-		data.lpvRemoteBase = VirtualAllocEx(process, nullptr, sz, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE); 
+		data.lpvRemoteBase = __VirtualAllocEx(process, sz, PAGE_EXECUTE_READWRITE); 
 		if (!data.lpvRemoteBase)
 		{
 			PrintError("VirtualAllocEx[lpvRemoteBase]");
@@ -65,6 +65,8 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		}
 	}
 
+	return true;
+
 	// Freeing LoadedModules
 
 	for (module_data& data : LoadedModules)
@@ -75,6 +77,18 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 	}
 
 	LoadedModules.clear();
+
+	// Freeing API sets
+
+	for (int i = 0; i < modules.size(); ++i)
+	{
+		if (!modules[i].IsAPIset) {
+			continue;
+		}
+
+		delete[] modules[i].ImageBase;
+		modules.erase(modules.begin() + i);
+	}
 
 	// Mapping modules
 
@@ -88,6 +102,8 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 			return false;
 		}
 	}
+
+	RunDllMain(process, modules[0]);
 
 	// Freeing modules
 

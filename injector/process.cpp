@@ -102,9 +102,9 @@ bool MapDLL(HANDLE process, module_data& dll)
 	const IMAGE_SECTION_HEADER* sh = dll.sections;
 
 	// Mapping PE headers
-	if (!WriteProcessMemory(process, dll.lpvRemoteBase, dll.ImageBase, sh[0].PointerToRawData, nullptr))
+	if (!WPM(process, dll.lpvRemoteBase, dll.ImageBase, sh[0].PointerToRawData))
 	{
-		PrintError("FAILED TO MAP PE HEADERS", GET_LAST_ERR);
+		PrintError("FAILED TO MAP PE HEADERS");
 		return false;
 	}
 
@@ -114,12 +114,53 @@ bool MapDLL(HANDLE process, module_data& dll)
 		void* section = dll.ImageBase + sh[i].PointerToRawData;
 		void* SectionBuffer = reinterpret_cast<BYTE*>(dll.RemoteBase) + sh[i].VirtualAddress;
 
-		if (!WriteProcessMemory(process, SectionBuffer, section, sh[i].Misc.VirtualSize, nullptr))
+		if (!WPM(process, SectionBuffer, section, sh[i].Misc.VirtualSize))
 		{
-			PrintError("FAILED TO MAP SECTIONS", GET_LAST_ERR);
+			PrintError("FAILED TO MAP SECTIONS");
 			return false;
 		}
 	}
 
+	return true;
+}
+
+bool RunDllMain(HANDLE process, const module_data& dll)
+{
+	BYTE shellcode[] =
+	{
+		0x6A, 0x00,       // push 0     (lpvReserved)
+		0x6A, 0x01,       // push 1     (fdwReason - DLL_PROCESS_ATTACH)
+		0x68, 0, 0, 0, 0, // push 0     (hinstDLL)
+		0xE8, 0, 0, 0, 0, // call 0     (DllMain)
+		0x83, 0xC4, 0x04, // add esp, 4 (Must clean stack for CreateRemoteThread since DllMain is __stdcall)
+		0xC3              // ret
+	};
+
+	void* pShellcode = __VirtualAllocEx(process, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
+	if (!pShellcode)
+	{
+		PrintError("VirtualAllocEx[RunDllMain]");
+		return false;
+	}
+
+	const DWORD EntryPoint = GET_EP(dll) + dll.RemoteBase;
+	*reinterpret_cast<DWORD*>(shellcode + 5) = dll.RemoteBase; // hinstDLL
+	*reinterpret_cast<DWORD*>(shellcode + 10) = EntryPoint - (reinterpret_cast<DWORD>(pShellcode) + 14); // EP
+
+	if (!WPM(process, pShellcode, shellcode, sizeof(shellcode)))
+	{
+		PrintError("WriteProcessMemory[RunDllMain]");
+		return false;
+	}
+
+	//std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
+	//system("pause");
+
+	if (!__CreateRemoteThread(process, pShellcode, nullptr))
+	{
+		PrintError("CreateRemoteThread[RunDllMain]");
+		return true;
+	}
+	
 	return true;
 }
