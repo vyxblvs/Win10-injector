@@ -65,8 +65,6 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		}
 	}
 
-	return true;
-
 	// Freeing LoadedModules
 
 	for (module_data& data : LoadedModules)
