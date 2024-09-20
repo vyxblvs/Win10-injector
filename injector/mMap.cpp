@@ -6,7 +6,7 @@
 
 bool ManualMapDll(const HANDLE process, const char* DllPath)
 {
-	std::vector<module_data> LoadedModules, modules;
+	std::vector<MODULE_DATA> LoadedModules, modules;
 	modules.push_back({});
 
 	if (!LoadDLL(DllPath, &modules.back())) {
@@ -19,22 +19,23 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Resolving dependencies for unloaded modules
 
+	std::vector<API_DATA> ApiSets;
 	for (int i = 0; i < modules.size(); ++i)
 	{
-		if (modules[i].IsAPIset) {
+		if (modules[i].IsApiSet) {
 			continue;
 		}
 
-		if (!GetDependencies(process, &modules[i], modules, LoadedModules, i)) {
+		if (!GetDependencies(process, &modules[i], modules, LoadedModules, ApiSets, i)) {
 			return false;
 		}
 	}
 
 	// Allocating memory for modules
 
-	for (module_data& data : modules)
+	for (MODULE_DATA& data : modules)
 	{
-		if (data.IsAPIset) {
+		if (data.IsApiSet) {
 			continue;
 		}
 
@@ -47,11 +48,15 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		}
 	}
 
+	// Getting the host modules for all API sets 
+
+	GetApiHosts(ApiSets, modules, LoadedModules);
+
 	// Applying relocation and resolving imports
 
-	for (module_data& data : modules)
+	for (MODULE_DATA& data : modules)
 	{
-		if (data.IsAPIset) {
+		if (data.IsApiSet) {
 			continue;
 		}
 
@@ -60,14 +65,14 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		}
 
 		// ResolveImports will also get the EP of the target module
-		if (!ResolveImports(data, modules, LoadedModules)) {
+		if (!ResolveImports(data, modules, LoadedModules, ApiSets)) {
 			return false;
 		}
 	}
 
 	// Freeing LoadedModules
 
-	for (module_data& data : LoadedModules)
+	for (MODULE_DATA& data : LoadedModules)
 	{
 		if (data.ImageBase) {
 			delete[] data.ImageBase;
@@ -76,23 +81,11 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	LoadedModules.clear();
 
-	// Freeing API sets
-
-	for (int i = 0; i < modules.size(); ++i)
-	{
-		if (!modules[i].IsAPIset) {
-			continue;
-		}
-
-		delete[] modules[i].ImageBase;
-		modules.erase(modules.begin() + i);
-	}
-
 	// Mapping modules
 
-	for (module_data& data : modules)
+	for (MODULE_DATA& data : modules)
 	{
-		if (data.IsAPIset) {
+		if (data.IsApiSet) {
 			continue;
 		}
 
@@ -105,7 +98,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Freeing modules
 
-	for (module_data& data : modules)
+	for (MODULE_DATA& data : modules)
 	{
 		delete[] data.ImageBase;
 	} 

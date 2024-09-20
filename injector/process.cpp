@@ -64,7 +64,7 @@ HANDLE GetProcessHandle(const char* ProcessName)
 	return nullptr;
 }
 
-bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
+bool GetLoadedModules(HANDLE process, std::vector<MODULE_DATA>& buffer)
 {
 	DWORD sz;
 	HMODULE handles[1024];
@@ -85,7 +85,7 @@ bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 		}
 
 		buffer.push_back({});
-		module_data& data = buffer.back();
+		MODULE_DATA& data = buffer.back();
 
 		std::string& ModulePath = data.path;
 		ModulePath = path;
@@ -97,7 +97,7 @@ bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 	return true;
 }
 
-bool MapDLL(HANDLE process, module_data& dll)
+bool MapDLL(HANDLE process, MODULE_DATA& dll)
 {
 	const IMAGE_SECTION_HEADER* sh = dll.sections;
 
@@ -124,7 +124,7 @@ bool MapDLL(HANDLE process, module_data& dll)
 	return true;
 }
 
-bool RunDllMain(HANDLE process, const module_data& dll)
+bool RunDllMain(HANDLE process, const MODULE_DATA& dll)
 {
 	BYTE shellcode[] =
 	{
@@ -143,7 +143,7 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 		return false;
 	}
 
-	const DWORD EntryPoint = GET_EP(dll) + dll.RemoteBase;
+	const DWORD EntryPoint = GetEP(dll) + dll.RemoteBase;
 	*reinterpret_cast<DWORD*>(shellcode + 5) = dll.RemoteBase; // hinstDLL
 	*reinterpret_cast<DWORD*>(shellcode + 10) = EntryPoint - (reinterpret_cast<DWORD>(pShellcode) + 14); // EP
 
@@ -153,8 +153,8 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 		return false;
 	}
 
-	//std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
-	//system("pause");
+	std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
+	system("pause");
 
 	if (!__CreateRemoteThread(process, pShellcode, nullptr))
 	{
