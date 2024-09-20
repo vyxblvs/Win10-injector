@@ -6,7 +6,7 @@
 
 bool ManualMapDll(const HANDLE process, const char* DllPath)
 {
-	std::vector<MODULE_DATA> LoadedModules, modules;
+	std::vector<module_data> LoadedModules, modules;
 	modules.push_back({});
 
 	if (!LoadDLL(DllPath, &modules.back())) {
@@ -33,7 +33,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Allocating memory for modules
 
-	for (MODULE_DATA& data : modules)
+	for (module_data& data : modules)
 	{
 		if (data.IsApiSet) {
 			continue;
@@ -54,7 +54,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Applying relocation and resolving imports
 
-	for (MODULE_DATA& data : modules)
+	for (module_data& data : modules)
 	{
 		if (data.IsApiSet) {
 			continue;
@@ -72,7 +72,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Freeing LoadedModules
 
-	for (MODULE_DATA& data : LoadedModules)
+	for (module_data& data : LoadedModules)
 	{
 		if (data.ImageBase) {
 			delete[] data.ImageBase;
@@ -83,7 +83,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Mapping modules
 
-	for (MODULE_DATA& data : modules)
+	for (module_data& data : modules)
 	{
 		if (data.IsApiSet) {
 			continue;
@@ -98,7 +98,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Freeing modules
 
-	for (MODULE_DATA& data : modules)
+	for (module_data& data : modules)
 	{
 		delete[] data.ImageBase;
 	} 

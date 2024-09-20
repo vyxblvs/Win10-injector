@@ -31,6 +31,7 @@ HANDLE GetProcessHandle(const char* ProcessName)
 		if (_wcsicmp(ProcessNameW, pe32.szExeFile) == 0)
 		{
 			CloseHandle(snap);
+
 			constexpr DWORD dwDesiredAccess = PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE;
 			const HANDLE process = OpenProcess(dwDesiredAccess, false, pe32.th32ProcessID);
 
@@ -39,8 +40,7 @@ HANDLE GetProcessHandle(const char* ProcessName)
 				return nullptr;
 			}
 
-			USHORT ProcessMachine;
-			USHORT NativeMachine;
+			USHORT ProcessMachine, NativeMachine;
 			if (!IsWow64Process2(process, &ProcessMachine, &NativeMachine))
 			{
 				PrintError("IsWow64Process2");
@@ -60,11 +60,13 @@ HANDLE GetProcessHandle(const char* ProcessName)
 
 	} while (Process32Next(snap, &pe32));
 
+
+	PrintError("FAILED TO LOCATE PROCESS", IGNORE_ERR);
 	CloseHandle(snap);
 	return nullptr;
 }
 
-bool GetLoadedModules(HANDLE process, std::vector<MODULE_DATA>& buffer)
+bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 {
 	DWORD sz;
 	HMODULE handles[1024];
@@ -85,7 +87,7 @@ bool GetLoadedModules(HANDLE process, std::vector<MODULE_DATA>& buffer)
 		}
 
 		buffer.push_back({});
-		MODULE_DATA& data = buffer.back();
+		module_data& data = buffer.back();
 
 		std::string& ModulePath = data.path;
 		ModulePath = path;
@@ -97,7 +99,7 @@ bool GetLoadedModules(HANDLE process, std::vector<MODULE_DATA>& buffer)
 	return true;
 }
 
-bool MapDLL(HANDLE process, MODULE_DATA& dll)
+bool MapDLL(HANDLE process, module_data& dll)
 {
 	const IMAGE_SECTION_HEADER* sh = dll.sections;
 
@@ -124,7 +126,7 @@ bool MapDLL(HANDLE process, MODULE_DATA& dll)
 	return true;
 }
 
-bool RunDllMain(HANDLE process, const MODULE_DATA& dll)
+bool RunDllMain(HANDLE process, const module_data& dll)
 {
 	BYTE shellcode[] =
 	{
@@ -153,8 +155,8 @@ bool RunDllMain(HANDLE process, const MODULE_DATA& dll)
 		return false;
 	}
 
-	std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
-	system("pause");
+	//std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
+	//system("pause");
 
 	if (!__CreateRemoteThread(process, pShellcode, nullptr))
 	{

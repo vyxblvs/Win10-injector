@@ -52,12 +52,12 @@ struct HASH_ENTRY
  
 // Forward Declarations
 
-bool LoadDLL(const char* path, MODULE_DATA* buffer);
+bool LoadDLL(const char* path, module_data* buffer);
 
-bool GetDependencies(HANDLE process, MODULE_DATA* target, std::vector<MODULE_DATA>& buffer, std::vector<MODULE_DATA>& LoadedModules, std::vector<API_DATA>& ApiData, int it);
+bool GetDependencies(HANDLE process, module_data* target, std::vector<module_data>& buffer, std::vector<module_data>& LoadedModules, std::vector<API_DATA>& ApiData, int it);
 
-bool ApplyRelocation(const MODULE_DATA& ModuleData);
+bool ApplyRelocation(const module_data& ModuleData);
 
-bool GetApiHosts(std::vector<API_DATA>& ApiData, std::vector<MODULE_DATA>& modules, std::vector<MODULE_DATA>& LoadedModules);
+bool GetApiHosts(std::vector<API_DATA>& ApiData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules);
 
-bool ResolveImports(MODULE_DATA& ModuleData, std::vector<MODULE_DATA>& modules, std::vector<MODULE_DATA>& LoadedModules, std::vector<API_DATA>& ApiData);
+bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules, std::vector<API_DATA>& ApiData);

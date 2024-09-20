@@ -23,17 +23,13 @@
 
 #define loaded   1
 
-#define mArray   0
-
-#define iterator 1
-
 struct API_DATA
 {
 	int HostPos = 0;
 	bool HostVec;
 };
 
-struct MODULE_DATA
+struct module_data
 {
 	std::string path;
 	std::string name;
