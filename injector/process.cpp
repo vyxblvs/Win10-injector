@@ -135,7 +135,6 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 		0x6A, 0x01,       // push 1     (fdwReason - DLL_PROCESS_ATTACH)
 		0x68, 0, 0, 0, 0, // push 0     (hinstDLL)
 		0xE8, 0, 0, 0, 0, // call 0     (DllMain)
-		0x83, 0xC4, 0x04, // add esp, 4 (Must clean stack for CreateRemoteThread since DllMain is __stdcall)
 		0xC3              // ret
 	};
 
@@ -156,8 +155,8 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 		return false;
 	}
 
-	std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
-	system("pause");
+	//std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
+	//system("pause");
 
 	if (!__CreateRemoteThread(process, pShellcode, nullptr))
 	{
