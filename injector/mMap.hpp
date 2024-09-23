@@ -25,8 +25,8 @@
 
 struct API_DATA
 {
-	int HostPos = 0;
-	bool HostVec;
+	int HostPos = -1;
+	int HostVec;
 };
 
 struct module_data
@@ -44,7 +44,7 @@ struct module_data
 	{
 		void* lpvRemoteBase;
 		DWORD RemoteBase;
-		int ApiDataPos;
+		ULONG ApiDataPos;
 	};
 };
 

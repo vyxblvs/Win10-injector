@@ -20,27 +20,22 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 	// Resolving dependencies for unloaded modules
 
 	std::vector<API_DATA> ApiSets;
-	for (int i = 0; i < modules.size(); ++i)
+	for (UINT i = 0; i < modules.size(); ++i)
 	{
-		if (modules[i].IsApiSet) {
-			continue;
-		}
+		if (modules[i].IsApiSet) continue;
 
-		if (!GetDependencies(process, &modules[i], modules, LoadedModules, ApiSets, i)) {
+		if (!GetDependencies(process, &modules[i], modules, LoadedModules, ApiSets, i))
 			return false;
-		}
 	}
 
 	// Allocating memory for modules
 
-	for (module_data& data : modules)
+	for (auto& data : modules)
 	{
-		if (data.IsApiSet) {
-			continue;
-		}
+		if (data.IsApiSet) continue;
 
-		const size_t sz = data.NT_HEADERS->OptionalHeader.SizeOfImage;
-		data.lpvRemoteBase = __VirtualAllocEx(process, sz, PAGE_EXECUTE_READWRITE); 
+		data.lpvRemoteBase = __VirtualAllocEx(process, data.NT_HEADERS->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READWRITE);
+
 		if (!data.lpvRemoteBase)
 		{
 			PrintError("VirtualAllocEx[lpvRemoteBase]");
@@ -50,55 +45,52 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Getting the host modules for all API sets 
 
-	GetApiHosts(ApiSets, modules, LoadedModules);
+	for (auto& data : modules)
+	{
+		if (!data.IsApiSet) continue;
+
+		if (!GetApiHost(data, ApiSets, modules, LoadedModules))
+			return false;
+	}
 
 	// Applying relocation and resolving imports
 
 	for (module_data& data : modules)
 	{
-		if (data.IsApiSet) {
-			continue;
-		}
-
-		if (!ApplyRelocation(data)) {
+		if (data.IsApiSet) continue;
+		
+		if (!ApplyRelocation(data)) 
 			return false;
-		}
 
 		// ResolveImports will also get the EP of the target module
-		if (!ResolveImports(data, modules, LoadedModules, ApiSets)) {
+		if (!ResolveImports(data, modules, LoadedModules, ApiSets)) 
 			return false;
-		}
 	}
 
 	// Freeing LoadedModules
 
-	for (module_data& data : LoadedModules)
+	for (auto& data : LoadedModules)
 	{
-		if (data.ImageBase) {
-			delete[] data.ImageBase;
-		}
+		if (data.ImageBase) delete[] data.ImageBase;
 	}
 
 	LoadedModules.clear();
 
 	// Mapping modules
 
-	for (module_data& data : modules)
+	for (auto& data : modules)
 	{
-		if (data.IsApiSet) {
-			continue;
-		}
-
-		if (!MapDLL(process, data)) {
+		if (data.IsApiSet) continue;
+		
+		if (!MapDLL(process, data))
 			return false;
-		}
 	}
 
 	RunDllMain(process, modules[0]);
 
 	// Freeing modules
 
-	for (module_data& data : modules)
+	for (auto& data : modules)
 	{
 		delete[] data.ImageBase;
 	} 

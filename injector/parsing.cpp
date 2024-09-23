@@ -1,7 +1,8 @@
 #include "pch.h"
-#include "injector.hpp"
 #include "mMap.hpp"
 #include "parsing.hpp"
+#include "helpers.hpp"
+#include "injector.hpp"
 
 template <typename ret, typename ptr> auto ConvertRVA(const module_data& image, DWORD RVA, ptr ModuleBase, bool virt = false) -> ret
 {
@@ -54,130 +55,12 @@ bool LoadDLL(const char* path, module_data* buffer)
 	return true;
 }
 
-bool IsApiSet(std::string ModuleName)
-{
-	// API Set naming conventions specified at https://learn.microsoft.com/en-us/windows/win32/apiindex/windows-apisets
-
-	if (ModuleName.substr(ModuleName.size() - 4) == ".dll") {
-		ModuleName.erase(ModuleName.size() - 4);
-	}
-
-	std::string NameStart = ModuleName.substr(0, 4);
-	if (_stricmp(NameStart.c_str(), "api-") != 0 && _stricmp(NameStart.c_str(), "ext-") != 0) {
-		return false;
-	}
-
-	ModuleName.erase(0, ModuleName.size() - 6);
-	if (ModuleName[0] != 'l' && ModuleName[0] != 'L') {
-		return false;
-	}
-
-	for (int i = 1; i < 6; ++i)
-	{
-		if (i % 2 == 0)
-		{
-			if (ModuleName[i] != '-') {
-				return false;
-			}
-		}
-		else if (!std::isdigit(static_cast<BYTE>(ModuleName[i]))) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-bool LocateModule(HANDLE process, const std::string name, module_data& buffer)
-{
-	// Checking if the module is an API set, retrieving it from Windows\SysWOW64\downlevel if so
-	// Once the injector is functional, the module location process will be updated to match the Windows DLL Loader
-
-	if (IsApiSet(name))
-	{
-		const std::string APIpath = "C:\\Windows\\SysWOW64\\downlevel\\" + name;
-
-		if (PathFileExistsA(APIpath.c_str())) 
-		{
-			buffer.IsApiSet = true;
-			return LoadDLL(APIpath.c_str(), &buffer);
-		}
-		else
-		{
-			PrintError("FAILED TO LOCATE API SET");
-			return false;
-		}
-	}
-
-	// Checking Windows\SysWOW64
-
-	std::string DllPath = "C:\\Windows\\SysWOW64\\" + name;
-	if (PathFileExistsA(DllPath.c_str())) {
-		return LoadDLL(DllPath.c_str(), &buffer);
-	}
-
-	// Checking target process folder
-
-	DWORD sz = 256;
-	DllPath.clear();
-	DllPath.resize(sz);
-	if (!QueryFullProcessImageNameA(process, 0, DllPath.data(), &sz))
-	{
-		PrintError("QueryFullProcessImageNameA");
-		return false;
-	}
-	
-	DllPath.erase(DllPath.find_last_of('\\') + 1, DllPath.size());
-	DllPath += name;
-
-	if (PathFileExistsA(DllPath.c_str())) {
-		return LoadDLL(DllPath.c_str(), &buffer);
-	}
-
-	PrintError("FAILED TO LOCATE MODULE");
-	return false;
-}
-
-module_data* FindModule(const char* name, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules, int* pos = nullptr)
-{
-	// will be rewriting this whole function tomorrow
-
-	for (int i = 0; i < modules.size(); ++i)
-	{
-		if (_stricmp(modules[i].name.c_str(), name) == 0)
-		{
-			if (pos) 
-			{ 
-				*pos = i;
-				return unloaded;
-			}
-
-			return &modules[i];
-		}
-	}
-
-	for (int i = 0; i < LoadedModules.size(); ++i)
-	{
-		if (_stricmp(LoadedModules[i].name.c_str(), name) == 0)
-		{
-			if (pos) 
-			{ 
-				*pos = i;
-				return reinterpret_cast<module_data*>(loaded);
-			}
-
-			return &LoadedModules[i];
-		}
-	}
-
-	return nullptr;
-}
-
 bool GetDependencies(HANDLE process, module_data* target, std::vector<module_data>& buffer, std::vector<module_data>& LoadedModules, std::vector<API_DATA>& ApiData, int it)
 {
 	const IMAGE_DATA_DIRECTORY ImportTable = pGetDataDir(target, IMAGE_DIRECTORY_ENTRY_IMPORT);
+
 	auto ImportDir = ConvertRVA<const IMAGE_IMPORT_DESCRIPTOR*>(*target, ImportTable.VirtualAddress, target->ImageBase);
-	if (!ImportDir)
+	if (ImportDir == nullptr)
 	{
 		PrintErrorRVA("ImportTable.VirtualAddress");
 		return false;
@@ -186,7 +69,7 @@ bool GetDependencies(HANDLE process, module_data* target, std::vector<module_dat
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
 		auto name = ConvertRVA<const char*>(*target, ImportDir[i].Name, target->ImageBase);
-		if (!name)
+		if (name == nullptr)
 		{
 			PrintErrorRVA("ImportDir.Name");
 			return false;
@@ -198,9 +81,8 @@ bool GetDependencies(HANDLE process, module_data* target, std::vector<module_dat
 			if (_stricmp(LoadedModule.name.c_str(), name) == 0) 
 			{
 				// If the module is already loaded in the target process but unloaded modules depend on it the image is to be loaded locally
-				if (!LoadedModule.ImageBase && !LoadDLL(LoadedModule.path.c_str(), &LoadedModule)) {
+				if (!LoadedModule.ImageBase && !LoadDLL(LoadedModule.path.c_str(), &LoadedModule))
 					return false;
-				}
 
 				IsLoaded = true;
 				break;
@@ -208,14 +90,14 @@ bool GetDependencies(HANDLE process, module_data* target, std::vector<module_dat
 		}
 		if (IsLoaded) continue;
 
-		if (FindModule(name, buffer, LoadedModules)) continue;
+		if (FindModule(name, buffer, LoadedModules)) 
+			continue;
 
 		buffer.push_back({});
 		target = &buffer[it];
 
-		if (!LocateModule(process, name, buffer.back())) {
+		if (!ResolveModulePath(process, name, &buffer.back())) 
 			return false;
-		}
 
 		if (buffer.back().IsApiSet)
 		{
@@ -267,62 +149,84 @@ bool ApplyRelocation(const module_data& ModuleData)
 	return true;
 }
 
-std::string ConvertUnicodeStr(UNICODE_STRING& UnicodeStr)
+bool GetApiHost(module_data& api, std::vector<API_DATA>& ApiData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
 {
-	const int utf8len = WideCharToMultiByte(CP_UTF8, 0, UnicodeStr.Buffer, UnicodeStr.Length / sizeof(WCHAR), nullptr, 0, nullptr, nullptr);
-	std::string buffer(utf8len, '\0');
-	WideCharToMultiByte(CP_UTF8, 0, UnicodeStr.Buffer, UnicodeStr.Length / sizeof(WCHAR), buffer.data(), utf8len, nullptr, nullptr);
-	return buffer;
-}
+	// Most of this function's code is from my other project, ApiView: https://github.com/islipnot/ApiView
+	// This function specifically emulates ntdll's, ApiSetpSearchForApiSet
 
-bool GetApiHosts(std::vector<API_DATA>& ApiSets, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
-{
-	auto nsHeader = static_cast<NAMESPACE_HEADER*>(NtCurrentTeb()->ProcessEnvironmentBlock->Reserved9[0]);
-	auto dwNsHeader = reinterpret_cast<DWORD_PTR>(nsHeader);
+	static auto ApiSetMap = reinterpret_cast<NAMESPACE_HEADER*>(NtCurrentTeb()->ProcessEnvironmentBlock->Reserved9[0]);
+	auto dwApiSetMap = reinterpret_cast<DWORD>(ApiSetMap);
 
-	auto nsEntry = reinterpret_cast<NAMESPACE_ENTRY*>(dwNsHeader + nsHeader->nsOffset);
-	for (ULONG i = 0; i < nsHeader->ApiSetCount; ++i)
+	size_t ApiSubNameSz = api.name.size() - 6;
+	std::wstring wApiName(ApiSubNameSz, '\0');
+
+	mbstowcs(wApiName.data(), api.name.c_str(), ApiSubNameSz);
+
+	// Hashing API name
+
+	DWORD ApiHash = 0;
+
+	for (size_t i = 0; i < ApiSubNameSz; ++i)
 	{
-		UNICODE_STRING ApiName;
-		ApiName.MaximumLength = ApiName.Length = static_cast<USHORT>(nsEntry->ApiSubNameSz);
-		ApiName.Buffer = reinterpret_cast<PWSTR>(dwNsHeader + nsEntry->ApiNameOffset);
+		wchar_t ch = wApiName[i];
 
-		UNICODE_STRING HostNames[2];
-		auto HostEntry = reinterpret_cast<API_SET_VALUE_ENTRY*>(dwNsHeader + nsEntry->HostEntryOffset);
-		for (ULONG i = 0; i < nsEntry->HostCount; ++i)
-		{
-			HostNames[i].MaximumLength = HostNames[i].Length = HostEntry[i].ValueLength;
-			HostNames[i].Buffer = reinterpret_cast<PWSTR>(dwNsHeader + HostEntry[i].ValueOffset);
-		}
+		// Assuring ch is lowercase. Cast prevents non-letters from fitting this case.
+		if (static_cast<UINT16>(ch - 65) <= 25)
+			ch += 32;
 
-		const std::string mbApiName = ConvertUnicodeStr(ApiName);
-		for (auto& data : modules)
-		{
-			if (!data.IsApiSet) continue;
-
-			API_DATA& ApiSet = ApiSets[data.ApiDataPos];
-			if (ApiSet.HostPos) continue;
-
-			if (_stricmp(mbApiName.c_str(), data.name.substr(0, data.name.size() - 6).c_str()) == 0)
-			{
-				int HostPos = 0;
-				std::string HostName = ConvertUnicodeStr(HostNames[0]);
-
-				bool HostModule = FindModule(HostName.c_str(), modules, LoadedModules, &HostPos);
-				if (!HostModule)
-				{
-					PrintError("FAILED TO LOCATE MODULE[GetApiHosts]", IGNORE_ERR);
-					return false;
-				}
-
-				ApiSet.HostPos = HostPos;
-				ApiSet.HostVec = HostModule;
-			}
-		}
-
-		++nsEntry;
+		ApiHash = ch + (ApiSetMap->Multiplier * ApiHash);
 	}
 
+	// Getting the offset of the API's corresponding HASH_TABLE entry
+
+	int UpperMidIndex = 0;
+	int LowerMidIndex = ApiSetMap->ApiSetCount - 1;
+	
+	DWORD HashEntryOffset = 0;
+	DWORD HashTableOffset = ApiSetMap->HashOffset;
+
+	while (true)
+	{
+		int EntryIndex = (LowerMidIndex + UpperMidIndex) >> 1;
+		HashEntryOffset = HashTableOffset + (sizeof(HASH_ENTRY) * EntryIndex);
+
+		DWORD LocatedHash = *reinterpret_cast<DWORD*>(dwApiSetMap + HashEntryOffset);
+
+		if (ApiHash < LocatedHash)
+		{
+			LowerMidIndex = EntryIndex - 1;
+		}
+		else
+		{
+			if (ApiHash == LocatedHash) break;
+			UpperMidIndex = EntryIndex + 1;
+		}
+
+		if (UpperMidIndex > LowerMidIndex) return false;
+	}
+
+	// Getting API's API_SET_NAMESPACE_ENTRY
+
+	const DWORD HashApiIndex  = *reinterpret_cast<DWORD*>(reinterpret_cast<char*>(&ApiSetMap->MapSizeByte) + HashEntryOffset);
+	const DWORD NsEntryOffset = ApiSetMap->NsEntryOffset + (sizeof(API_SET_NAMESPACE_ENTRY) * HashApiIndex);
+	const auto nsEntry        = reinterpret_cast<API_SET_NAMESPACE_ENTRY*>(dwApiSetMap + NsEntryOffset);
+
+	// Getting API's primary host name
+
+	const auto HostEntry = reinterpret_cast<API_SET_VALUE_ENTRY*>(dwApiSetMap + nsEntry->HostEntryOffset);
+
+	UNICODE_STRING HostName;
+	HostName.MaximumLength = HostName.Length = static_cast<USHORT>(HostEntry->ValueLength);
+	HostName.Buffer = reinterpret_cast<wchar_t*>(dwApiSetMap + HostEntry->ValueOffset);
+
+	const std::string mbHostName = UnicodeToMultibyte(HostName);
+
+	// Getting host's corresponding module_data struct
+
+	API_DATA ApiBuffer;
+	FindModule(mbHostName.c_str(), modules, LoadedModules, &ApiBuffer.HostPos, &ApiBuffer.HostVec);
+
+	ApiData.emplace_back(ApiBuffer);
 	return true;
 }
 
@@ -332,21 +236,21 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 	const IMAGE_DATA_DIRECTORY ExportDir = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
 
 	auto ExportTable = ConvertRVA<const IMAGE_EXPORT_DIRECTORY*>(ModuleData, ExportDir.VirtualAddress, ImageBase);
-	if (!ExportTable)
+	if (ExportTable == nullptr)
 	{
 		PrintErrorRVA("ExportDir.VirtualAddress");
 		return NULL;
 	}
 
 	auto NameTable = ConvertRVA<DWORD*>(ModuleData, ExportTable->AddressOfNames, ImageBase);
-	if (!NameTable)
+	if (NameTable == nullptr)
 	{
 		PrintErrorRVA("ExportTable->AddressOfNames");
 		return NULL;
 	}
 
 	auto OrdinalTable = ConvertRVA<WORD*>(ModuleData, ExportTable->AddressOfNameOrdinals, ModuleData.ImageBase);
-	if (!OrdinalTable)
+	if (OrdinalTable == nullptr)
 	{
 		PrintErrorRVA("ExportTable->AddressOfNameOrdinals");
 		return NULL;
@@ -354,13 +258,13 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 
 	// Export Address Table
 	auto EAT = ConvertRVA<DWORD*>(ModuleData, ExportTable->AddressOfFunctions, ModuleData.ImageBase);
-	if (!EAT)
+	if (EAT == nullptr)
 	{
 		PrintErrorRVA("ExportTable->AddressOfFunctions");
 		return NULL;
 	}
 
-	for (int i = 0; i < ExportTable->NumberOfFunctions; ++i)
+	for (ULONG i = 0; i < ExportTable->NumberOfFunctions; ++i)
 	{
 		auto ExportName = ConvertRVA<const char*>(ModuleData, NameTable[i], ImageBase);
 		if (!ExportName)
@@ -371,13 +275,13 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 
 		if (_stricmp(TargetExport, ExportName) == 0)
 		{
-			const DWORD fnRVA = EAT[OrdinalTable[i]];
+			const DWORD fnRVA = EAT[static_cast<DWORD>(OrdinalTable[i])];
 
 			// If fnAddress is within the export section, its a forwarder
 			if (fnRVA >= ExportDir.VirtualAddress && fnRVA < ExportDir.VirtualAddress + ExportDir.Size)
 			{
 				const char* ForwarderName = ConvertRVA<const char*>(ModuleData, fnRVA, ModuleData.ImageBase);
-				if (!ForwarderName)
+				if (ForwarderName == nullptr)
 				{
 					PrintErrorRVA("EAT[OrdinalTable[i]]<FORWARDER>");
 					return NULL;
@@ -388,7 +292,7 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 				fnName.erase(0, fnName.find_last_of('.') + 1);
 
 				module_data* HostModule = FindModule(HostModuleName.c_str(), modules, LoadedModules);
-				if (!HostModule)
+				if (HostModule == nullptr)
 				{
 					PrintError("FAILED TO LOCATE MODULE", IGNORE_ERR);
 					return NULL;
@@ -420,7 +324,7 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 {
 	const IMAGE_DATA_DIRECTORY ImportTable = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_IMPORT);
 	auto ImportDir = ConvertRVA<const IMAGE_IMPORT_DESCRIPTOR*>(ModuleData, ImportTable.VirtualAddress, ModuleData.ImageBase);
-	if (!ImportDir)
+	if (ImportDir == nullptr)
 	{
 		PrintErrorRVA("ImportTable.VirtualAddress");
 		return false;
@@ -430,10 +334,8 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 	{
 		auto ModuleName = ConvertRVA<const char*>(ModuleData, ImportDir[i].Name, ModuleData.ImageBase);
 
-		std::cout << '\n' << ModuleName << "\n\n";
-
 		module_data* ImportedModule = FindModule(ModuleName, modules, LoadedModules);
-		if (!ImportedModule)
+		if (ImportedModule == nullptr)
 		{
 			PrintError("FAILED TO LOCATE MODULE[ResolveImports]", IGNORE_ERR);
 			return false;
@@ -441,7 +343,7 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 
 		// Import Address Table
 		auto IAT = ConvertRVA<IMAGE_THUNK_DATA32*>(ModuleData, ImportDir[i].FirstThunk, ModuleData.ImageBase);
-		if (!IAT)
+		if (IAT == nullptr)
 		{
 			PrintErrorRVA("ImportDir[i].FirstThunk");
 			return false;
@@ -449,7 +351,7 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 
 		// Import Lookup Table
 		auto ILT = ConvertRVA<const IMAGE_THUNK_DATA32*>(ModuleData, ImportDir[i].Characteristics, ModuleData.ImageBase);
-		if (!ILT)
+		if (ILT == nullptr)
 		{
 			PrintErrorRVA("ImportDir[i].Characteristics");
 			return false;
@@ -458,18 +360,14 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 		for (int fn = 0; ILT[fn].u1.Function; ++fn)
 		{
 			auto ImportByName = ConvertRVA<const IMAGE_IMPORT_BY_NAME*>(ModuleData, ILT[fn].u1.AddressOfData, ModuleData.ImageBase);
-			if (!ImportByName)
+			if (ImportByName == nullptr)
 			{
 				PrintError("ILT[fn].u1.AddressOfData");
 				return false;
 			}
 			
 			const DWORD fnAddress = GetExportAddress(ImportByName->Name, *ImportedModule, modules, LoadedModules, ApiData);
-			if (!fnAddress) {
-				return false;
-			}
-			
-			std::cout << "- " << ImportByName->Name << " -> 0x" << std::hex << std::uppercase << fnAddress << std::endl;
+			if (fnAddress == NULL) return false;
 
 			IAT[fn].u1.AddressOfData = fnAddress;
 		}

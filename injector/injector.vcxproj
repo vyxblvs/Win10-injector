@@ -135,6 +135,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="helpers.cpp" />
     <ClCompile Include="parsing.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="LoadLib.cpp" />
@@ -146,6 +147,7 @@
     <ClCompile Include="process.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="helpers.hpp" />
     <ClInclude Include="parsing.hpp" />
     <ClInclude Include="injector.hpp" />
     <ClInclude Include="LoadLib.hpp" />

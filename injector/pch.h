@@ -9,7 +9,6 @@
 #include <winternl.h>
 #include <TlHelp32.h>
 #include <ImageHlp.h>
-#include <wow64apiset.h>
 #include <Psapi.h>
 
 // Standard headers

@@ -32,7 +32,10 @@ HANDLE GetProcessHandle(const char* ProcessName)
 		{
 			CloseHandle(snap);
 
-			constexpr DWORD dwDesiredAccess = PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE;
+			// PROCESS_QUERY_LIMITED_INFORMATION is requested to check if the process is running under WOW64.
+			// If for whatever reason you want to avoid this access right, you can remove it aswell as the WOW64 check without issue.
+			
+			constexpr DWORD dwDesiredAccess = PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_LIMITED_INFORMATION;
 			const HANDLE process = OpenProcess(dwDesiredAccess, false, pe32.th32ProcessID);
 
 			if (!process) {
@@ -40,17 +43,12 @@ HANDLE GetProcessHandle(const char* ProcessName)
 				return nullptr;
 			}
 
-			USHORT ProcessMachine, NativeMachine;
-			if (!IsWow64Process2(process, &ProcessMachine, &NativeMachine))
-			{
-				PrintError("IsWow64Process2");
-				CloseHandle(process);
-				return nullptr;
-			}
+			BOOL Wow64Process;
+			IsWow64Process(process, &Wow64Process);
 
-			if (ProcessMachine == IMAGE_FILE_MACHINE_UNKNOWN)
+			if (Wow64Process == FALSE)
 			{
-				PrintError("INVALID PROCESS ARCHITECTURE", false);
+				PrintError("INVALID PROCESS ARCHITECTURE", IGNORE_ERR);
 				CloseHandle(process);
 				return nullptr;
 			}
@@ -77,7 +75,7 @@ bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 	}
 
 	sz /= sizeof(HMODULE);
-	for (int i = 0; i < sz; ++i)
+	for (ULONG i = 0; i < sz; ++i)
 	{
 		char path[MAX_PATH];
 		if (!GetModuleFileNameExA(process, handles[i], path, MAX_PATH))

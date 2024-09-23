@@ -45,6 +45,9 @@
     <ClCompile Include="process.cpp">
       <Filter>Source Files\manual mapping</Filter>
     </ClCompile>
+    <ClCompile Include="helpers.cpp">
+      <Filter>Source Files\manual mapping</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="parsing.hpp">
@@ -63,6 +66,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="process.hpp">
+      <Filter>Header Files\manual mapping</Filter>
+    </ClInclude>
+    <ClInclude Include="helpers.hpp">
       <Filter>Header Files\manual mapping</Filter>
     </ClInclude>
   </ItemGroup>
