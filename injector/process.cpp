@@ -155,9 +155,6 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 		return false;
 	}
 
-	//std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
-	//system("pause");
-
 	if (!__CreateRemoteThread(process, pShellcode, nullptr))
 	{
 		PrintError("CreateRemoteThread[RunDllMain]");
