@@ -55,7 +55,7 @@ bool LoadDLL(const char* path, module_data* buffer)
 	return true;
 }
 
-bool GetDependencies(HANDLE process, module_data* target, std::vector<module_data>& buffer, std::vector<module_data>& LoadedModules, std::vector<API_DATA>& ApiData, int it)
+bool GetDependencies(HANDLE process, module_data* target, int it)
 {
 	const IMAGE_DATA_DIRECTORY ImportTable = pGetDataDir(target, IMAGE_DIRECTORY_ENTRY_IMPORT);
 
@@ -88,21 +88,18 @@ bool GetDependencies(HANDLE process, module_data* target, std::vector<module_dat
 				break;
 			}
 		}
-		if (IsLoaded) continue;
+		if (IsLoaded || FindModule(name)) continue;
 
-		if (FindModule(name, buffer, LoadedModules)) 
-			continue;
+		modules.push_back({});
+		target = &modules[it];
 
-		buffer.push_back({});
-		target = &buffer[it];
-
-		if (!ResolveModulePath(process, name, &buffer.back())) 
+		if (!GetModule(process, name, &modules.back())) 
 			return false;
 
-		if (buffer.back().IsApiSet)
+		if (modules.back().IsApiSet)
 		{
-			ApiData.push_back({});
-			buffer.back().ApiDataPos = ApiData.size() - 1;
+			ApiSets.push_back({});
+			modules.back().ApiDataPos = ApiSets.size() - 1;
 		}
 	}
 
@@ -149,7 +146,7 @@ bool ApplyRelocation(const module_data& ModuleData)
 	return true;
 }
 
-bool GetApiHost(module_data& api, std::vector<API_DATA>& ApiData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules)
+bool GetApiHost(module_data& api)
 {
 	// Most of this function's code is from my other project, ApiView: https://github.com/islipnot/ApiView
 	// This function specifically emulates ntdll's, ApiSetpSearchForApiSet
@@ -224,13 +221,13 @@ bool GetApiHost(module_data& api, std::vector<API_DATA>& ApiData, std::vector<mo
 	// Getting host's corresponding module_data struct
 
 	API_DATA ApiBuffer;
-	FindModule(mbHostName.c_str(), modules, LoadedModules, &ApiBuffer.HostPos, &ApiBuffer.HostVec);
+	FindModule(mbHostName.c_str(), &ApiBuffer.HostPos, &ApiBuffer.HostVec);
 
-	ApiData[api.ApiDataPos] = ApiBuffer;
+	ApiSets[api.ApiDataPos] = ApiBuffer;
 	return true;
 }
 
-DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>&LoadedModules, std::vector<API_DATA>& ApiSets)
+DWORD GetExportAddress(HANDLE process, const char* TargetExport, module_data& ModuleData)
 {
 	BYTE* ImageBase = ModuleData.ImageBase;
 	const IMAGE_DATA_DIRECTORY ExportDir = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
@@ -291,11 +288,21 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 				HostModuleName = fnName.substr(0, fnName.find_first_of('.')) + ".dll";
 				fnName.erase(0, fnName.find_last_of('.') + 1);
 
-				module_data* HostModule = FindModule(HostModuleName.c_str(), modules, LoadedModules);
+				module_data* HostModule = FindModule(HostModuleName.c_str());
 				if (HostModule == nullptr)
 				{
-					PrintError("FAILED TO LOCATE MODULE", IGNORE_ERR);
-					return NULL;
+					modules.push_back({});
+
+					if (!GetModule(process, HostModuleName, &modules.back()))
+						return NULL;
+
+					HostModule = &modules.back();
+					if (HostModule->IsApiSet)
+					{
+						ApiSets.push_back({});
+						HostModule->ApiDataPos = ApiSets.size() - 1;
+						GetApiHost(modules.back());
+					}
 				}
 
 				if (HostModule->IsApiSet)
@@ -309,7 +316,7 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 					return NULL;
 				}
 
-				return GetExportAddress(fnName.c_str(), *HostModule, modules, LoadedModules, ApiSets);
+				return GetExportAddress(process, fnName.c_str(), *HostModule);
 			}
 
 			return ConvertRVA<DWORD>(ModuleData, fnRVA, ModuleData.RemoteBase, true);
@@ -320,10 +327,10 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 	return NULL;
 }
 
-bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules, std::vector<API_DATA>& ApiData)
+bool ResolveImports(HANDLE process, module_data* ModuleData, int it)
 {
-	const IMAGE_DATA_DIRECTORY ImportTable = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_IMPORT);
-	auto ImportDir = ConvertRVA<const IMAGE_IMPORT_DESCRIPTOR*>(ModuleData, ImportTable.VirtualAddress, ModuleData.ImageBase);
+	const IMAGE_DATA_DIRECTORY ImportTable = pGetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_IMPORT);
+	auto ImportDir = ConvertRVA<const IMAGE_IMPORT_DESCRIPTOR*>(*ModuleData, ImportTable.VirtualAddress, ModuleData->ImageBase);
 	if (ImportDir == nullptr)
 	{
 		PrintErrorRVA("ImportTable.VirtualAddress");
@@ -332,9 +339,9 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
-		auto ModuleName = ConvertRVA<const char*>(ModuleData, ImportDir[i].Name, ModuleData.ImageBase);
+		auto ModuleName = ConvertRVA<const char*>(*ModuleData, ImportDir[i].Name, ModuleData->ImageBase);
 
-		module_data* ImportedModule = FindModule(ModuleName, modules, LoadedModules);
+		module_data* ImportedModule = FindModule(ModuleName);
 		if (ImportedModule == nullptr)
 		{
 			PrintError("FAILED TO LOCATE MODULE[ResolveImports]", IGNORE_ERR);
@@ -342,7 +349,7 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 		}
 
 		// Import Address Table
-		auto IAT = ConvertRVA<IMAGE_THUNK_DATA32*>(ModuleData, ImportDir[i].FirstThunk, ModuleData.ImageBase);
+		auto IAT = ConvertRVA<IMAGE_THUNK_DATA32*>(*ModuleData, ImportDir[i].FirstThunk, ModuleData->ImageBase);
 		if (IAT == nullptr)
 		{
 			PrintErrorRVA("ImportDir[i].FirstThunk");
@@ -350,7 +357,7 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 		}
 
 		// Import Lookup Table
-		auto ILT = ConvertRVA<const IMAGE_THUNK_DATA32*>(ModuleData, ImportDir[i].Characteristics, ModuleData.ImageBase);
+		auto ILT = ConvertRVA<const IMAGE_THUNK_DATA32*>(*ModuleData, ImportDir[i].Characteristics, ModuleData->ImageBase);
 		if (ILT == nullptr)
 		{
 			PrintErrorRVA("ImportDir[i].Characteristics");
@@ -359,17 +366,18 @@ bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, 
 
 		for (int fn = 0; ILT[fn].u1.Function; ++fn)
 		{
-			auto ImportByName = ConvertRVA<const IMAGE_IMPORT_BY_NAME*>(ModuleData, ILT[fn].u1.AddressOfData, ModuleData.ImageBase);
+			auto ImportByName = ConvertRVA<const IMAGE_IMPORT_BY_NAME*>(*ModuleData, ILT[fn].u1.AddressOfData, ModuleData->ImageBase);
 			if (ImportByName == nullptr)
 			{
 				PrintError("ILT[fn].u1.AddressOfData");
 				return false;
 			}
 			
-			const DWORD fnAddress = GetExportAddress(ImportByName->Name, *ImportedModule, modules, LoadedModules, ApiData);
+			const DWORD fnAddress = GetExportAddress(process, ImportByName->Name, *ImportedModule);
 			if (fnAddress == NULL) return false;
 
 			IAT[fn].u1.AddressOfData = fnAddress;
+			ModuleData = &modules[it];
 		}
 	}
 

@@ -4,27 +4,28 @@
 #include "process.hpp"
 #include "injector.hpp"
 
+std::vector<API_DATA> ApiSets;
+std::vector<module_data> LoadedModules, modules;
+
 bool ManualMapDll(const HANDLE process, const char* DllPath)
 {
-	std::vector<module_data> LoadedModules, modules;
 	modules.push_back({});
 
 	if (!LoadDLL(DllPath, &modules.back())) {
 		return false;
 	}
 
-	if (!GetLoadedModules(process, LoadedModules)) {
+	if (!GetLoadedModules(process)) {
 		return false;
 	}
 
 	// Resolving dependencies for unloaded modules
 
-	std::vector<API_DATA> ApiSets;
 	for (UINT i = 0; i < modules.size(); ++i)
 	{
 		if (modules[i].IsApiSet) continue;
 
-		if (!GetDependencies(process, &modules[i], modules, LoadedModules, ApiSets, i))
+		if (!GetDependencies(process, &modules[i], i))
 			return false;
 	}
 
@@ -49,24 +50,23 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 	{
 		if (!data.IsApiSet) continue;
 
-		if (!GetApiHost(data, ApiSets, modules, LoadedModules))
+		if (!GetApiHost(data))
 			return false;
 	}
 
 	// Applying relocation and resolving imports
 
-	for (module_data& data : modules)
+	for (UINT i = 0; i < modules.size(); ++i)
 	{
-		if (data.IsApiSet) continue;
+		if (modules[i].IsApiSet) continue;
 		
-		if (!ApplyRelocation(data)) 
+		if (!ApplyRelocation(modules[i]))
 			return false;
 
 		// ResolveImports will also get the EP of the target module
-		if (!ResolveImports(data, modules, LoadedModules, ApiSets)) 
+		if (!ResolveImports(process, &modules[i], i))
 			return false;
 	}
-	return true;
 
 	// Freeing LoadedModules
 

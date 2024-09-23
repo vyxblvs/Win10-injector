@@ -64,7 +64,7 @@ HANDLE GetProcessHandle(const char* ProcessName)
 	return nullptr;
 }
 
-bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
+bool GetLoadedModules(HANDLE process)
 {
 	DWORD sz;
 	HMODULE handles[1024];
@@ -84,8 +84,8 @@ bool GetLoadedModules(HANDLE process, std::vector<module_data>& buffer)
 			return false;
 		}
 
-		buffer.push_back({});
-		module_data& data = buffer.back();
+		LoadedModules.push_back({});
+		module_data& data = LoadedModules.back();
 
 		std::string& ModulePath = data.path;
 		ModulePath = path;
@@ -102,7 +102,7 @@ bool MapDLL(HANDLE process, module_data& dll)
 	const IMAGE_SECTION_HEADER* sh = dll.sections;
 
 	// Mapping PE headers
-	if (!WPM(process, dll.lpvRemoteBase, dll.ImageBase, sh[0].PointerToRawData))
+	if (!WPM(process, dll.lpvRemoteBase, dll.ImageBase, dll.NT_HEADERS->OptionalHeader.SizeOfHeaders))
 	{
 		PrintError("FAILED TO MAP PE HEADERS");
 		return false;

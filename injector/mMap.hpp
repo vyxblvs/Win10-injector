@@ -48,4 +48,7 @@ struct module_data
 	};
 };
 
+extern std::vector<API_DATA> ApiSets;
+extern std::vector<module_data> LoadedModules, modules;
+
 bool ManualMapDll(const HANDLE process, const char* DllPath);

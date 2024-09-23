@@ -54,10 +54,10 @@ struct HASH_ENTRY
 
 bool LoadDLL(const char* path, module_data* buffer);
 
-bool GetDependencies(HANDLE process, module_data* target, std::vector<module_data>& buffer, std::vector<module_data>& LoadedModules, std::vector<API_DATA>& ApiData, int it);
+bool GetDependencies(HANDLE process, module_data* target, int it);
 
 bool ApplyRelocation(const module_data& ModuleData);
 
-bool GetApiHost(module_data& api, std::vector<API_DATA>& ApiData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules);
+bool GetApiHost(module_data& api);
 
-bool ResolveImports(module_data& ModuleData, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules, std::vector<API_DATA>& ApiData);
+bool ResolveImports(HANDLE process, module_data* ModuleData, int it);

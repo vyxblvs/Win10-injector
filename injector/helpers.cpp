@@ -34,7 +34,7 @@ bool IsApiSet(std::string ModuleName)
 	return true;
 }
 
-bool ResolveModulePath(HANDLE process, const std::string name, module_data* buffer)
+bool GetModule(HANDLE process, const std::string name, module_data* buffer)
 {
 	// Checking if the module is an API set, retrieving it from Windows\SysWOW64\downlevel if so
 	// Once the injector is functional, the module location process will be updated to match the Windows DLL Loader
@@ -84,7 +84,7 @@ bool ResolveModulePath(HANDLE process, const std::string name, module_data* buff
 	return false;
 }
 
-module_data* FindModule(const char* name, std::vector<module_data>& modules, std::vector<module_data>& LoadedModules, int* pos, int* ReturnedVec)
+module_data* FindModule(const char* name, int* pos, int* ReturnedVec)
 {
 	for (UINT i = 0; i < modules.size(); ++i)
 	{
