@@ -111,12 +111,15 @@ bool MapDLL(HANDLE process, module_data& dll)
 	// Mapping sections
 	for (int i = 0; i < dll.NT_HEADERS->FileHeader.NumberOfSections; ++i)
 	{
-		void* section = dll.ImageBase + sh[i].PointerToRawData;
-		void* SectionBuffer = reinterpret_cast<BYTE*>(dll.RemoteBase) + sh[i].VirtualAddress;
+		auto& section = sh[i];
 
-		if (!WPM(process, SectionBuffer, section, sh[i].Misc.VirtualSize))
+		void* pSection = dll.ImageBase + section.PointerToRawData;
+		void* SectionBuffer = static_cast<BYTE*>(dll.lpvRemoteBase) + section.VirtualAddress;
+		DWORD SizeOfRawData = section.SizeOfRawData;
+
+		if (SizeOfRawData && !WPM(process, SectionBuffer, pSection, SizeOfRawData))
 		{
-			PrintError("FAILED TO MAP SECTIONS");
+			PrintError("FAILED TO MAP SECTION");
 			return false;
 		}
 	}
@@ -153,8 +156,8 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 		return false;
 	}
 
-	//std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
-	//system("pause");
+	std::cout << "EP: 0x" << std::hex << std::uppercase << (DWORD)pShellcode << '\n';
+	system("pause");
 
 	if (!__CreateRemoteThread(process, pShellcode, nullptr))
 	{

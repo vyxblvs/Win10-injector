@@ -86,7 +86,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		if (!MapDLL(process, data))
 			return false;
 	}
-
+	
 	RunDllMain(process, modules[0]);
 
 	// Freeing modules
