@@ -115,7 +115,7 @@ bool ApplyRelocation(const module_data& ModuleData)
 
 	const IMAGE_DATA_DIRECTORY pRelocTable = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_BASERELOC);
 	auto RelocTable = ConvertRVA<IMAGE_BASE_RELOCATION*>(ModuleData, pRelocTable.VirtualAddress, ModuleData.ImageBase);
-	if (!RelocTable) 
+	if (RelocTable == nullptr) 
 	{
 		PrintErrorRVA("pRelocTable.VirtualAddress");
 		return false;
@@ -134,7 +134,7 @@ bool ApplyRelocation(const module_data& ModuleData)
 		{
 			const DWORD RVA = (entry[i] % 0x1000) + RelocTable->VirtualAddress;
 			auto RelocAddress = ConvertRVA<DWORD*>(ModuleData, RVA, ModuleData.ImageBase);
-			if (!RelocAddress)
+			if (RelocAddress == nullptr)
 			{
 				PrintErrorRVA("RelocAddress");
 				return false;
@@ -226,7 +226,7 @@ bool GetApiHost(module_data& api, std::vector<API_DATA>& ApiData, std::vector<mo
 	API_DATA ApiBuffer;
 	FindModule(mbHostName.c_str(), modules, LoadedModules, &ApiBuffer.HostPos, &ApiBuffer.HostVec);
 
-	ApiData.emplace_back(ApiBuffer);
+	ApiData[api.ApiDataPos] = ApiBuffer;
 	return true;
 }
 
@@ -267,7 +267,7 @@ DWORD GetExportAddress(const char* TargetExport, const module_data& ModuleData, 
 	for (ULONG i = 0; i < ExportTable->NumberOfFunctions; ++i)
 	{
 		auto ExportName = ConvertRVA<const char*>(ModuleData, NameTable[i], ImageBase);
-		if (!ExportName)
+		if (ExportName == nullptr)
 		{
 			PrintErrorRVA("NameTable[i]");
 			return NULL;

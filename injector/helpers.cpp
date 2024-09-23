@@ -120,8 +120,8 @@ module_data* FindModule(const char* name, std::vector<module_data>& modules, std
 std::string UnicodeToMultibyte(UNICODE_STRING& wstr)
 {
 	const USHORT len = wstr.Length / 2;
-
 	std::string str(len + 1, '\0');
+
 	wcstombs(str.data(), wstr.Buffer, len);
 
 	return str;

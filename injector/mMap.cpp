@@ -66,6 +66,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		if (!ResolveImports(data, modules, LoadedModules, ApiSets)) 
 			return false;
 	}
+	return true;
 
 	// Freeing LoadedModules
 

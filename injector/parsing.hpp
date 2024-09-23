@@ -27,12 +27,12 @@ struct API_SET_NAMESPACE_ENTRY
 	DWORD Flags;           // 0x01 bit set in ApiSetSchema.dll if API Set is "sealed"
 	DWORD ApiNameOffset;   // offset from start of map to name of API Set
 	DWORD ApiNameSz;       // ignored; observed to be size, in bytes, of name of API Set
-	DWORD ApiSubNameSz;    // size, in bytes, of name of API Set up to but not including last hyphen (api-ms-win-core-example-l1-1-1 -> api-ms-win-core-example-l1-1)
+	DWORD ApiSubNameSz;    // size, in bytes, of name of API Set up to but not including last hyphen
 	DWORD HostEntryOffset; // offset from start of map to array of value entries for hosts
 	DWORD HostCount;       // number of hosts
 };
 
-struct HASH_ENTRY // once im absolutely certain im resolving API sets the same as ntdll, ill start using these instead of string comparison
+struct HASH_ENTRY
 {
 	DWORD ApiHash;  // hash of API Set's lower-case name up to but not including last hyphen
 	DWORD ApiIndex; // index of API Set in array of namespace entries
