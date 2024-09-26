@@ -4,10 +4,10 @@
 #include "injector.hpp"
 #include "parsing.hpp"
 
-HANDLE GetProcessHandle(const char* ProcessName)
+HANDLE GetProcessHandle(const wchar_t* ProcessName)
 {
 	const HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (snap == INVALID_HANDLE_VALUE)
+	if (snap == INVALID_HANDLE_VALUE) 
 	{
 		PrintError("CreateToolhelp32Snapshot");
 		return nullptr;
@@ -23,12 +23,9 @@ HANDLE GetProcessHandle(const char* ProcessName)
 		return nullptr;
 	}
 
-	wchar_t wProcessName[MAX_PATH];
-	mbstowcs_s(nullptr, wProcessName, ProcessName, MAX_PATH);
-
 	do
 	{
-		if (_wcsicmp(wProcessName, pe32.szExeFile) == 0)
+		if (_wcsicmp(ProcessName, pe32.szExeFile) == 0)
 		{
 			CloseHandle(snap);
 
@@ -69,30 +66,28 @@ bool GetLoadedModules(HANDLE process)
 {
 	DWORD sz;
 	HMODULE handles[1024];
-	if (!EnumProcessModules(process, handles, sizeof(handles), &sz))
-	{
-		PrintError("EnumProcessModules");
-		return false;
+	if (!EnumProcessModules(process, handles, sizeof(handles), &sz)) {
+		return PrintError("EnumProcessModules");
 	}
 
 	sz /= sizeof(HMODULE);
+	LoadedModules.reserve(sz);
+
 	for (ULONG i = 0; i < sz; ++i)
 	{
 		char path[MAX_PATH];
-		if (!GetModuleFileNameExA(process, handles[i], path, MAX_PATH))
-		{
-			PrintError("GetModuleFileNameExA");
-			return false;
+		if (!GetModuleFileNameExA(process, handles[i], path, MAX_PATH)) {
+			return PrintError("GetModuleFileNameExA");
 		}
 
-		LoadedModules.push_back({});
-		DLL_DATA& dll = LoadedModules.back();
-
+		DLL_DATA dll;
 		std::string& ModulePath = dll.path;
 		ModulePath = path;
 
 		dll.name = ModulePath.substr(ModulePath.find_last_of('\\') + 1);
 		dll.pRemoteBase = handles[i];
+
+		LoadedModules.emplace_back(dll);
 	}
 
 	return true;
@@ -103,10 +98,8 @@ bool MapDLL(HANDLE process, DLL_DATA& dll)
 	const IMAGE_SECTION_HEADER* sh = dll.sections;
 
 	// Mapping PE headers
-	if (!WPM(process, dll.pRemoteBase, dll.ImageBase, dll.NT_HEADERS->OptionalHeader.SizeOfHeaders))
-	{
-		PrintError("FAILED TO MAP PE HEADERS");
-		return false;
+	if (!WPM(process, dll.pRemoteBase, dll.ImageBase, dll.NT_HEADERS->OptionalHeader.SizeOfHeaders)) {
+		return PrintError("FAILED TO MAP PE HEADERS");
 	}
 
 	// Mapping sections
@@ -118,10 +111,8 @@ bool MapDLL(HANDLE process, DLL_DATA& dll)
 		void* SectionBuffer = static_cast<BYTE*>(dll.pRemoteBase) + section.VirtualAddress;
 		SIZE_T SizeOfRawData = section.SizeOfRawData;
 
-		if (SizeOfRawData && !WPM(process, SectionBuffer, pSection, SizeOfRawData))
-		{
-			PrintError("FAILED TO MAP SECTION");
-			return false;
+		if (SizeOfRawData && !WPM(process, SectionBuffer, pSection, SizeOfRawData)) {
+			return PrintError("FAILED TO MAP SECTION");
 		}
 	}
 
@@ -140,26 +131,20 @@ bool RunDllMain(HANDLE process, const DLL_DATA& dll)
 	};
 
 	void* pShellcode = __VirtualAllocEx(process, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
-	if (pShellcode == NULL)
-	{
-		PrintError("VirtualAllocEx[RunDllMain]");
-		return false;
+	if (pShellcode == NULL) {
+		return PrintError("VirtualAllocEx[RunDllMain]");
 	}
 
 	const DWORD_PTR EntryPoint = GetEP(dll) + dll.RemoteBase;
 	*reinterpret_cast<DWORD*>(shellcode + 5) = dll.RemoteBase; // hinstDLL
 	*reinterpret_cast<DWORD*>(shellcode + 10) = EntryPoint - (reinterpret_cast<DWORD>(pShellcode) + 14); // EP
 
-	if (WPM(process, pShellcode, shellcode, sizeof(shellcode)) == 0)
-	{
-		PrintError("WriteProcessMemory[RunDllMain]");
-		return false;
+	if (WPM(process, pShellcode, shellcode, sizeof(shellcode)) == 0) {
+		return PrintError("WriteProcessMemory[RunDllMain]");
 	}
 
-	if (__CreateRemoteThread(process, pShellcode, nullptr) == 0)
-	{
-		PrintError("CreateRemoteThread[RunDllMain]");
-		return false;
+	if (__CreateRemoteThread(process, pShellcode, nullptr) == 0) {
+		return PrintError("CreateRemoteThread[RunDllMain]");
 	}
 	
 	return true;

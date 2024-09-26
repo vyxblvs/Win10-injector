@@ -20,6 +20,6 @@
 
 // Forward declarations
 
-void PrintError(const char* msg, int ErrorMode = GET_LAST_ERR, const char* rvaDesc = nullptr);
+int PrintError(const char* msg, int ErrorMode = GET_LAST_ERR, const char* rvaDesc = nullptr);
 
-void PrintErrorRVA(const char* rvaDesc);
+int PrintErrorRVA(const char* rvaDesc);

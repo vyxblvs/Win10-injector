@@ -6,7 +6,7 @@
 
 // Error handling is to be cleaned up once manual mapping is functional, especially ConvertRVA errors.
 
-void PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
+int PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
 {
 	if (ErrorMode == RVA_CONVERSION_ERROR) {
 		std::cerr << "ERROR: FAILED TO CONVERT RVA (" << rvaDesc << ")\n";
@@ -17,56 +17,58 @@ void PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
 	else {
 		std::cerr << "ERROR: " << msg << '\n';
 	}
+
+	return NULL;
 }
 
-void PrintErrorRVA(const char* rvaDesc) 
+int PrintErrorRVA(const char* rvaDesc) 
 { 
-	PrintError(nullptr, RVA_CONVERSION_ERROR, rvaDesc); 
+	PrintError(nullptr, RVA_CONVERSION_ERROR, rvaDesc);
+	return 0;
 }
 
 // THIS INJECTOR IS MADE FOR x86 PROCESSES/DLLS
 
 // Argument format: injector.exe [process_name.exe] [dll_path.dll] [injection method]
-// Injection method defaults to LoadLibraryA if one is not specified
+// Injection method defaults to LoadLibraryW if one is not specified
 // Arguments are NOT case sensitive
 
-int main(int argc, char* argv[])
+int wmain(int argc, wchar_t* argv[])
 {
-	const char* ProcessName;
-	const char* DllPath;
+	const wchar_t* ProcessNameW;
+	const wchar_t* DllPathW;
 	bool method = _LoadLibrary;
 
 	// Checking arguments
-	if (argc <= 2)
+	if (argc < 3)
 	{
 		PrintError("Invalid Arguments", false);
 		return 1;
 	}
 	else
 	{
-		ProcessName = argv[1];
-		DllPath = argv[2];
+		ProcessNameW = argv[1];
+		DllPathW = argv[2];
 
-		if (argc >= 4) 
+		if (argc > 3) 
 		{
-			if (_stricmp(argv[3], "ManualMap") == 0) {
+			if (_wcsicmp(argv[3], L"ManualMap") == 0) 
+			{
 				method = ManualMap;
 			}
-			else if (_stricmp(argv[3], "LoadLibraryA") != 0)
+			else if (_wcsicmp(argv[3], L"LoadLibraryW") != 0)
 			{
-				// Does not default to LoadLibraryA in this case to avoid unwanted injection
+				// Does not default to LoadLibraryW in this case to avoid unwanted injection
 				PrintError("Invalid injection method", false);
 				return 1;
 			}
 		}
 	}
 	
-	const HANDLE process = GetProcessHandle(ProcessName);
-	if (!process) {
-		return 1;
-	}
+	const HANDLE process = GetProcessHandle(ProcessNameW);
+	if (!process) return 1;
 
-	if (method == _LoadLibrary && !LoadLibInject(process, DllPath))
+	if (method == _LoadLibrary && !LoadLibInject(process, DllPathW))
 	{
 		PrintError("LoadLibraryA injection failed\n", IGNORE_ERR);
 		CloseHandle(process);
@@ -74,7 +76,12 @@ int main(int argc, char* argv[])
 	}
 	else if (method == ManualMap)
 	{
-		const bool status = ManualMapDll(process, DllPath);
+		char DllPathA[MAX_PATH + 1];
+		wcstombs(DllPathA, DllPathW, MAX_PATH);
+
+		const bool status = ManualMapDll(process, DllPathA);
+
+		ApiSets.clear();
 
 		for (auto& dll : LoadedModules)
 		{

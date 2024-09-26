@@ -4,30 +4,35 @@
 #include "helpers.hpp"
 #include "injector.hpp"
 
-bool IsApiSet(std::string ModuleName)
+bool IsApiSet(std::string DllName)
 {
 	// API Set naming conventions: https://learn.microsoft.com/en-us/windows/win32/apiindex/windows-apisets
 
-	if (ModuleName.substr(ModuleName.size() - 4) == ".dll")
-		ModuleName.erase(ModuleName.size() - 4);
+	for (auto& ch : DllName) {
+		ch = std::tolower(static_cast<int>(ch));
+	}
+	
+	UINT pos = DllName.size() - 4;
+	if (DllName.substr(pos) == ".dll")
+		DllName.erase(pos);
 
-	std::string NameStart = ModuleName.substr(0, 4);
-	if (_stricmp(NameStart.c_str(), "api-") != 0 && _stricmp(NameStart.c_str(), "ext-") != 0)
+	const std::string ExtensionType = DllName.substr(0, 4);
+	if (ExtensionType != "api-" && ExtensionType != "ext-")
 		return false;
 
-	ModuleName.erase(0, ModuleName.size() - 6);
-	if (ModuleName[0] != 'l' && ModuleName[0] != 'L')
+	pos = DllName.size() - 6; // start of end sequence
+	if (DllName[pos] != 'l')
 		return false;
 
-	for (int i = 1; i < 6; ++i)
+	for (UINT i = pos + 1; i < pos + 6; ++i)
 	{
-		if (i % 2 == 0)
+		if ((i - pos) % 2 == 0)
 		{
-			if (ModuleName[i] != '-')
+			if (DllName[i] != '-')
 				return false;
 		}
 
-		else if (!std::isdigit(static_cast<BYTE>(ModuleName[i])))
+		else if (!std::isdigit(static_cast<int>(DllName[i])))
 			return false;
 	}
 
@@ -39,15 +44,10 @@ bool GetModule(HANDLE process, const std::string& DllName, DLL_DATA* buffer)
 	// Checking if the module is an API set, retrieving it from Windows\SysWOW64\downlevel if so
 	// Once the injector is functional, the module location process will be updated to match the Windows DLL Loader
 
-#pragma warning(push)
-#pragma warning(disable : 6031)
-
 	std::string SysWOW(MAX_PATH, 0);
 	const UINT WinDirSz = GetWindowsDirectoryA(SysWOW.data(), MAX_PATH);
 	SysWOW.resize(WinDirSz);
 	SysWOW += "\\SysWOW64\\";
-
-#pragma warning(pop)
 
 	if (IsApiSet(DllName))
 	{
@@ -58,11 +58,7 @@ bool GetModule(HANDLE process, const std::string& DllName, DLL_DATA* buffer)
 			buffer->IsApiSet = true;
 			return LoadDll(APIpath.c_str(), buffer);
 		}
-		else
-		{
-			PrintError("FAILED TO LOCATE API SET");
-			return false;
-		}
+		else return PrintError("FAILED TO LOCATE API SET");
 	}
 
 	// Checking Windows\SysWOW64
@@ -78,10 +74,8 @@ bool GetModule(HANDLE process, const std::string& DllName, DLL_DATA* buffer)
 	DWORD sz = 256;
 	DllPath.clear();
 	DllPath.resize(sz);
-	if (QueryFullProcessImageNameA(process, 0, DllPath.data(), &sz) == 0)
-	{
-		PrintError("QueryFullProcessImageNameA");
-		return false;
+	if (QueryFullProcessImageNameA(process, 0, DllPath.data(), &sz) == 0) {
+		return PrintError("QueryFullProcessImageNameA");
 	}
 
 	DllPath.erase(DllPath.find_last_of('\\') + 1, DllPath.size());
@@ -91,8 +85,7 @@ bool GetModule(HANDLE process, const std::string& DllName, DLL_DATA* buffer)
 		return LoadDll(DllPath.c_str(), buffer);
 	}
 
-	PrintError("FAILED TO LOCATE MODULE");
-	return false;
+	return PrintError("FAILED TO LOCATE MODULE");
 }
 
 DLL_DATA* GetDllData(const char* name, int* pos, bool* ReturnedVec)
@@ -117,14 +110,4 @@ DLL_DATA* GetDllData(const char* name, int* pos, bool* ReturnedVec)
 	}
 
 	return nullptr;
-}
-
-std::string UnicodeToMultibyte(UNICODE_STRING& wstr)
-{
-	const USHORT len = wstr.Length / 2;
-	std::string str(len + 1, '\0');
-
-	wcstombs(str.data(), wstr.Buffer, len);
-
-	return str;
 }

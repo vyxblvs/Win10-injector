@@ -37,10 +37,8 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 		dll.pRemoteBase = __VirtualAllocEx(process, dll.NT_HEADERS->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READWRITE);
 
-		if (!dll.pRemoteBase)
-		{
-			PrintError("VirtualAllocEx[pRemoteBase]");
-			return false;
+		if (!dll.pRemoteBase) {
+			return PrintError("VirtualAllocEx[pRemoteBase]");
 		}
 	}
 

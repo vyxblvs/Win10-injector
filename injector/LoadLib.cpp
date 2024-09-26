@@ -2,41 +2,31 @@
 #include "injector.hpp"
 #include "LoadLib.hpp"
 
-bool LoadLibInject(const HANDLE process, const char* dll)
+bool LoadLibInject(const HANDLE process, const wchar_t* DllPath)
 {
-	const auto PathSize = strlen(dll);
+	const size_t PathSize = wcslen(DllPath);
 
 	void* DllBuffer = __VirtualAllocEx(process, PathSize, PAGE_READWRITE);
-	if (DllBuffer == nullptr)
-	{
-		PrintError("VirtualAllocEx[LoadLibInject]");
-		return false;
+	if (DllBuffer == nullptr) {
+		return PrintError("VirtualAllocEx[LoadLibInject]");
 	}
 
-	if (!WPM(process, DllBuffer, dll, PathSize))
-	{
+	if (!WPM(process, DllBuffer, DllPath, PathSize)) {
 		PrintError("WriteProcessMemory[dll_buffer]");
-		return false;
 	}
 
 	const HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
-	if (!kernel32)
-	{
-		PrintError("GetModuleHandle");
-		return false;
+	if (!kernel32) {
+		return PrintError("GetModuleHandle");
 	}
 
-	const FARPROC LoadLibAddr = GetProcAddress(kernel32, "LoadLibraryA");
-	if (!LoadLibAddr)
-	{
+	const FARPROC LoadLibAddr = GetProcAddress(kernel32, "LoadLibraryW");
+	if (!LoadLibAddr) {
 		PrintError("GetProcAddress");
-		return false;
 	}
 
-	if (!__CreateRemoteThread(process, LoadLibAddr, DllBuffer))
-	{
+	if (!__CreateRemoteThread(process, LoadLibAddr, DllBuffer)) {
 		PrintError("CreateRemoteThread[LoadLibInject]");
-		return false;
 	}
 
 	return true;

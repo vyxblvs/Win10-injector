@@ -48,7 +48,7 @@ struct HASH_ENTRY
  
 // Forward Declarations
 
-bool LoadDll(const char* path, DLL_DATA* buffer);
+bool LoadDll(const char * path, DLL_DATA* buffer);
 
 bool GetDependencies(HANDLE process, DLL_DATA* target, int it);
 

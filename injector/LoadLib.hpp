@@ -1,3 +1,3 @@
 #pragma once
 
-bool LoadLibInject(const HANDLE process, const char* dll);
+bool LoadLibInject(const HANDLE process, const wchar_t* DllPath);
