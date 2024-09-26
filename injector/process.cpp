@@ -23,12 +23,12 @@ HANDLE GetProcessHandle(const char* ProcessName)
 		return nullptr;
 	}
 
-	wchar_t ProcessNameW[MAX_PATH];
-	mbstowcs_s(nullptr, ProcessNameW, ProcessName, MAX_PATH);
+	wchar_t wProcessName[MAX_PATH];
+	mbstowcs_s(nullptr, wProcessName, ProcessName, MAX_PATH);
 
 	do
 	{
-		if (_wcsicmp(ProcessNameW, pe32.szExeFile) == 0)
+		if (_wcsicmp(wProcessName, pe32.szExeFile) == 0)
 		{
 			CloseHandle(snap);
 
@@ -38,7 +38,8 @@ HANDLE GetProcessHandle(const char* ProcessName)
 			constexpr DWORD dwDesiredAccess = PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_LIMITED_INFORMATION;
 			const HANDLE process = OpenProcess(dwDesiredAccess, false, pe32.th32ProcessID);
 
-			if (!process) {
+			if (!process) 
+			{
 				PrintError("OpenProcess");
 				return nullptr;
 			}
@@ -85,37 +86,37 @@ bool GetLoadedModules(HANDLE process)
 		}
 
 		LoadedModules.push_back({});
-		module_data& data = LoadedModules.back();
+		DLL_DATA& dll = LoadedModules.back();
 
-		std::string& ModulePath = data.path;
+		std::string& ModulePath = dll.path;
 		ModulePath = path;
 
-		data.name = ModulePath.substr(ModulePath.find_last_of('\\') + 1);
-		data.lpvRemoteBase = handles[i];
+		dll.name = ModulePath.substr(ModulePath.find_last_of('\\') + 1);
+		dll.pRemoteBase = handles[i];
 	}
 
 	return true;
 }
 
-bool MapDLL(HANDLE process, module_data& dll)
+bool MapDLL(HANDLE process, DLL_DATA& dll)
 {
 	const IMAGE_SECTION_HEADER* sh = dll.sections;
 
 	// Mapping PE headers
-	if (!WPM(process, dll.lpvRemoteBase, dll.ImageBase, dll.NT_HEADERS->OptionalHeader.SizeOfHeaders))
+	if (!WPM(process, dll.pRemoteBase, dll.ImageBase, dll.NT_HEADERS->OptionalHeader.SizeOfHeaders))
 	{
 		PrintError("FAILED TO MAP PE HEADERS");
 		return false;
 	}
 
 	// Mapping sections
-	for (int i = 0; i < dll.NT_HEADERS->FileHeader.NumberOfSections; ++i)
+	for (WORD i = 0; i < dll.NT_HEADERS->FileHeader.NumberOfSections; ++i)
 	{
 		auto& section = sh[i];
 
 		void* pSection = dll.ImageBase + section.PointerToRawData;
-		void* SectionBuffer = static_cast<BYTE*>(dll.lpvRemoteBase) + section.VirtualAddress;
-		DWORD SizeOfRawData = section.SizeOfRawData;
+		void* SectionBuffer = static_cast<BYTE*>(dll.pRemoteBase) + section.VirtualAddress;
+		SIZE_T SizeOfRawData = section.SizeOfRawData;
 
 		if (SizeOfRawData && !WPM(process, SectionBuffer, pSection, SizeOfRawData))
 		{
@@ -127,7 +128,7 @@ bool MapDLL(HANDLE process, module_data& dll)
 	return true;
 }
 
-bool RunDllMain(HANDLE process, const module_data& dll)
+bool RunDllMain(HANDLE process, const DLL_DATA& dll)
 {
 	BYTE shellcode[] =
 	{
@@ -139,26 +140,26 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 	};
 
 	void* pShellcode = __VirtualAllocEx(process, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
-	if (!pShellcode)
+	if (pShellcode == NULL)
 	{
 		PrintError("VirtualAllocEx[RunDllMain]");
 		return false;
 	}
 
-	const DWORD EntryPoint = GetEP(dll) + dll.RemoteBase;
+	const DWORD_PTR EntryPoint = GetEP(dll) + dll.RemoteBase;
 	*reinterpret_cast<DWORD*>(shellcode + 5) = dll.RemoteBase; // hinstDLL
 	*reinterpret_cast<DWORD*>(shellcode + 10) = EntryPoint - (reinterpret_cast<DWORD>(pShellcode) + 14); // EP
 
-	if (!WPM(process, pShellcode, shellcode, sizeof(shellcode)))
+	if (WPM(process, pShellcode, shellcode, sizeof(shellcode)) == 0)
 	{
 		PrintError("WriteProcessMemory[RunDllMain]");
 		return false;
 	}
 
-	if (!__CreateRemoteThread(process, pShellcode, nullptr))
+	if (__CreateRemoteThread(process, pShellcode, nullptr) == 0)
 	{
 		PrintError("CreateRemoteThread[RunDllMain]");
-		return true;
+		return false;
 	}
 	
 	return true;

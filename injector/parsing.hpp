@@ -45,17 +45,15 @@ struct HASH_ENTRY
 #define GetDataDir(data, dir) data.NT_HEADERS->OptionalHeader.DataDirectory[dir]
 
 #define GetEP(data) data.NT_HEADERS->OptionalHeader.AddressOfEntryPoint
-
-#define GetApiSetMap() NtCurrentTeb()->ProcessEnvironmentBlock->Reserved9[0]
  
 // Forward Declarations
 
-bool LoadDll(const char* path, module_data* buffer);
+bool LoadDll(const char* path, DLL_DATA* buffer);
 
-bool GetDependencies(HANDLE process, module_data* target, int it);
+bool GetDependencies(HANDLE process, DLL_DATA* target, int it);
 
-bool ApplyRelocation(const module_data& ModuleData);
+bool ApplyRelocation(const DLL_DATA& ModuleData);
 
-bool ResolveApiHost(module_data& api);
+bool ResolveApiHost(DLL_DATA& api);
 
-bool ResolveImports(HANDLE process, module_data* ModuleData, int it);
+bool ResolveImports(HANDLE process, DLL_DATA* ModuleData, int it);

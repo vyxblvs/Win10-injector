@@ -5,7 +5,7 @@
 #include "injector.hpp"
 
 std::vector<API_DATA> ApiSets;
-std::vector<module_data> LoadedModules, modules;
+std::vector<DLL_DATA> LoadedModules, modules;
 
 bool ManualMapDll(const HANDLE process, const char* DllPath)
 {
@@ -31,13 +31,13 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Allocating memory for modules
 
-	for (auto& data : modules)
+	for (auto& dll : modules)
 	{
-		if (data.IsApiSet) continue;
+		if (dll.IsApiSet) continue;
 
-		data.lpvRemoteBase = __VirtualAllocEx(process, data.NT_HEADERS->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READWRITE);
+		dll.pRemoteBase = __VirtualAllocEx(process, dll.NT_HEADERS->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READWRITE);
 
-		if (!data.lpvRemoteBase)
+		if (!dll.pRemoteBase)
 		{
 			PrintError("VirtualAllocEx[lpvRemoteBase]");
 			return false;
@@ -46,11 +46,11 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 	// Getting the host modules for all API sets 
 
-	for (auto& data : modules)
+	for (auto& dll : modules)
 	{
-		if (!data.IsApiSet) continue;
+		if (!dll.IsApiSet) continue;
 
-		if (!ResolveApiHost(data))
+		if (!ResolveApiHost(dll))
 			return false;
 	}
 
@@ -63,18 +63,17 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		if (!ApplyRelocation(modules[i]))
 			return false;
 
-		// ResolveImports will also get the EP of the target module
 		if (!ResolveImports(process, &modules[i], i))
 			return false;
 	}
 
 	// Mapping modules
 
-	for (auto& data : modules)
+	for (auto& dll : modules)
 	{
-		if (data.IsApiSet) continue;
+		if (dll.IsApiSet) continue;
 		
-		if (!MapDLL(process, data))
+		if (!MapDLL(process, dll))
 			return false;
 	}
 

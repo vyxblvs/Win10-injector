@@ -8,7 +8,7 @@
 
 void PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
 {
-	if (ErrorMode == RVA_FAIL) {
+	if (ErrorMode == RVA_CONVERSION_ERROR) {
 		std::cerr << "ERROR: FAILED TO CONVERT RVA (" << rvaDesc << ")\n";
 	}
 	else if (ErrorMode == GET_LAST_ERR) {
@@ -21,7 +21,7 @@ void PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
 
 void PrintErrorRVA(const char* rvaDesc) 
 { 
-	PrintError(nullptr, RVA_FAIL, rvaDesc); 
+	PrintError(nullptr, RVA_CONVERSION_ERROR, rvaDesc); 
 }
 
 // THIS INJECTOR IS MADE FOR x86 PROCESSES/DLLS
@@ -76,15 +76,15 @@ int main(int argc, char* argv[])
 	{
 		const bool status = ManualMapDll(process, DllPath);
 
-		for (auto& data : LoadedModules)
+		for (auto& dll : LoadedModules)
 		{
-			if (data.ImageBase) delete[] data.ImageBase;
+			if (dll.ImageBase) delete[] dll.ImageBase;
 		}
 		LoadedModules.clear();
 
-		for (auto& data : modules)
+		for (auto& dll : modules)
 		{
-			delete[] data.ImageBase;
+			delete[] dll.ImageBase;
 		}
 		modules.clear();
 

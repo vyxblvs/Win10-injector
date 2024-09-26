@@ -1,7 +1,7 @@
 #pragma once
 
-bool GetModule(HANDLE process, const std::string name, module_data* buffer);
+bool GetModule(HANDLE process, const std::string name, DLL_DATA* buffer);
 
-module_data* FindModule(const char* name, int* pos = nullptr, int* ReturnedVec = nullptr);
+DLL_DATA* GetDllData(const char* name, int* pos = nullptr, bool* ReturnedVec = nullptr);
 
 std::string UnicodeToMultibyte(UNICODE_STRING& wstr);

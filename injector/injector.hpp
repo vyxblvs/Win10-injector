@@ -10,7 +10,7 @@
 
 #define GET_LAST_ERR 1
 
-#define RVA_FAIL     2
+#define RVA_CONVERSION_ERROR     2
 
 #define __VirtualAllocEx(hProcess, dwSize, flProtect) VirtualAllocEx(hProcess, nullptr, dwSize, MEM_COMMIT | MEM_RESERVE, flProtect)
 

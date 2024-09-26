@@ -4,13 +4,13 @@
 #include "helpers.hpp"
 #include "injector.hpp"
 
-template <typename ret, typename ptr> auto ConvertRVA(const module_data& image, DWORD RVA, ptr ModuleBase, bool virt = false) -> ret
+template <typename ret, typename ptr> auto ConvertRVA(const DLL_DATA& image, DWORD RVA, ptr ModuleBase, bool virt = false) -> ret
 {
 	// RVA/VA explanations: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#general-concepts
 
 	const IMAGE_SECTION_HEADER* sh = image.sections;
 
-	for (int i = 0; i < image.NT_HEADERS->FileHeader.NumberOfSections; ++i)
+	for (WORD i = 0; i < image.NT_HEADERS->FileHeader.NumberOfSections; ++i)
 	{
 		const DWORD SectionVA = sh[i].VirtualAddress;
 
@@ -25,7 +25,7 @@ template <typename ret, typename ptr> auto ConvertRVA(const module_data& image, 
 	return NULL;
 }
 
-bool LoadDll(const char* path, module_data* buffer)
+bool LoadDll(const char* path, DLL_DATA* buffer)
 {
 	std::ifstream image(path, std::ios::binary | std::ios::ate);
 	if (image.fail())
@@ -55,7 +55,7 @@ bool LoadDll(const char* path, module_data* buffer)
 	return true;
 }
 
-bool GetDependencies(HANDLE process, module_data* target, int it)
+bool GetDependencies(HANDLE process, DLL_DATA* target, int it)
 {
 	const IMAGE_DATA_DIRECTORY ImportTable = pGetDataDir(target, IMAGE_DIRECTORY_ENTRY_IMPORT);
 
@@ -68,32 +68,32 @@ bool GetDependencies(HANDLE process, module_data* target, int it)
 
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
-		auto name = ConvertRVA<const char*>(*target, ImportDir[i].Name, target->ImageBase);
-		if (name == nullptr)
+		auto DllName = ConvertRVA<const char*>(*target, ImportDir[i].Name, target->ImageBase);
+		if (DllName == nullptr)
 		{
 			PrintErrorRVA("ImportDir.Name");
 			return false;
 		}
 
 		bool IsLoaded = false;
-		for (module_data& LoadedModule : LoadedModules)
+		for (DLL_DATA& dll : LoadedModules)
 		{
-			if (_stricmp(LoadedModule.name.c_str(), name) == 0) 
+			if (_stricmp(dll.name.c_str(), DllName) == 0) 
 			{
 				// If the module is already loaded in the target process but unloaded modules depend on it the image is to be loaded locally
-				if (!LoadedModule.ImageBase && !LoadDll(LoadedModule.path.c_str(), &LoadedModule))
+				if (!dll.ImageBase && !LoadDll(dll.path.c_str(), &dll))
 					return false;
 
 				IsLoaded = true;
 				break;
 			}
 		}
-		if (IsLoaded || FindModule(name)) continue;
+		if (IsLoaded || GetDllData(DllName)) continue;
 
 		modules.push_back({});
 		target = &modules[it];
 
-		if (!GetModule(process, name, &modules.back())) 
+		if (!GetModule(process, DllName, &modules.back())) 
 			return false;
 
 		if (modules.back().IsApiSet)
@@ -106,7 +106,7 @@ bool GetDependencies(HANDLE process, module_data* target, int it)
 	return true;
 }
 
-bool ApplyRelocation(const module_data& ModuleData)
+bool ApplyRelocation(const DLL_DATA& ModuleData)
 {
 	// .reloc explanation: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-reloc-section-image-only
 
@@ -129,8 +129,8 @@ bool ApplyRelocation(const module_data& ModuleData)
 
 		for (size_t i = 0; i < BlockSize && entry[i]; ++i)
 		{
-			const DWORD RVA = (entry[i] % 0x1000) + RelocTable->VirtualAddress;
-			auto RelocAddress = ConvertRVA<DWORD*>(ModuleData, RVA, ModuleData.ImageBase);
+			const DWORD rva = (entry[i] % 0x1000) + RelocTable->VirtualAddress;
+			auto RelocAddress = ConvertRVA<DWORD*>(ModuleData, rva, ModuleData.ImageBase);
 			if (RelocAddress == nullptr)
 			{
 				PrintErrorRVA("RelocAddress");
@@ -146,15 +146,15 @@ bool ApplyRelocation(const module_data& ModuleData)
 	return true;
 }
 
-bool ResolveApiHost(module_data& api)
+bool ResolveApiHost(DLL_DATA& api)
 {
 	// Most of this function's code is from my other project, ApiView: https://github.com/islipnot/ApiView
 	// This function specifically emulates ntdll's, ApiSetpSearchForApiSet
 
-	static auto ApiSetMap = reinterpret_cast<NAMESPACE_HEADER*>(NtCurrentTeb()->ProcessEnvironmentBlock->Reserved9[0]);
-	auto dwApiSetMap = reinterpret_cast<DWORD>(ApiSetMap);
+	static auto ApiSetMap = reinterpret_cast<API_SET_MAP*>(NtCurrentTeb()->ProcessEnvironmentBlock->Reserved9[0]);
+	const auto dwApiSetMap = reinterpret_cast<DWORD_PTR>(ApiSetMap);
 
-	const size_t ApiSubNameSz = api.name.size() - 6;
+	const UINT ApiSubNameSz = api.name.size() - 6;
 	std::wstring wApiName(ApiSubNameSz, '\0');
 
 	mbstowcs(wApiName.data(), api.name.c_str(), ApiSubNameSz);
@@ -163,7 +163,7 @@ bool ResolveApiHost(module_data& api)
 
 	DWORD ApiHash = 0;
 
-	for (size_t i = 0; i < ApiSubNameSz; ++i)
+	for (UINT i = 0; i < ApiSubNameSz; ++i)
 	{
 		wchar_t ch = wApiName[i];
 
@@ -181,13 +181,13 @@ bool ResolveApiHost(module_data& api)
 	
 	DWORD HashEntryOffset = 0;
 	DWORD HashTableOffset = ApiSetMap->HashOffset;
-
+	
 	while (true)
 	{
-		int EntryIndex = (LowerMidIndex + UpperMidIndex) >> 1;
+		const int EntryIndex = (LowerMidIndex + UpperMidIndex) >> 1;
 		HashEntryOffset = HashTableOffset + (sizeof(HASH_ENTRY) * EntryIndex);
 
-		DWORD LocatedHash = *reinterpret_cast<DWORD*>(dwApiSetMap + HashEntryOffset);
+		const DWORD LocatedHash = *reinterpret_cast<DWORD*>(dwApiSetMap + HashEntryOffset);
 
 		if (ApiHash < LocatedHash)
 		{
@@ -204,13 +204,13 @@ bool ResolveApiHost(module_data& api)
 
 	// Getting API's API_SET_NAMESPACE_ENTRY
 
-	const DWORD HashApiIndex  = *reinterpret_cast<DWORD*>(reinterpret_cast<char*>(&ApiSetMap->MapSizeByte) + HashEntryOffset);
-	const DWORD NsEntryOffset = ApiSetMap->NsEntryOffset + (sizeof(API_SET_NAMESPACE_ENTRY) * HashApiIndex);
-	const auto nsEntry        = reinterpret_cast<API_SET_NAMESPACE_ENTRY*>(dwApiSetMap + NsEntryOffset);
+	const ULONG HashApiIndex  = *reinterpret_cast<ULONG*>(reinterpret_cast<char*>(&ApiSetMap->MapSizeByte) + HashEntryOffset);
+	const DWORD NsEntryOffset = ApiSetMap->NsEntryOffset + (sizeof(NAMESPACE_ENTRY) * HashApiIndex);
+	const auto nsEntry        = reinterpret_cast<NAMESPACE_ENTRY*>(dwApiSetMap + NsEntryOffset);
 
 	// Getting API's primary host name
 
-	const auto HostEntry = reinterpret_cast<API_SET_VALUE_ENTRY*>(dwApiSetMap + nsEntry->HostEntryOffset);
+	const auto HostEntry = reinterpret_cast<HOST_ENTRY*>(dwApiSetMap + nsEntry->HostEntryOffset);
 
 	UNICODE_STRING HostName;
 	HostName.MaximumLength = HostName.Length = static_cast<USHORT>(HostEntry->ValueLength);
@@ -221,13 +221,13 @@ bool ResolveApiHost(module_data& api)
 	// Getting host's corresponding module_data struct
 
 	API_DATA ApiBuffer;
-	FindModule(mbHostName.c_str(), &ApiBuffer.HostPos, &ApiBuffer.HostVec);
+	GetDllData(mbHostName.c_str(), &ApiBuffer.HostPos, &ApiBuffer.HostVec);
 
 	ApiSets[api.ApiDataPos] = ApiBuffer;
 	return true;
 }
 
-DWORD ResolveExportAddress(HANDLE process, const char* TargetExport, module_data& ModuleData)
+DWORD_PTR ResolveExportAddress(HANDLE process, const char* TargetExport, DLL_DATA& ModuleData)
 {
 	BYTE* ImageBase = ModuleData.ImageBase;
 	const IMAGE_DATA_DIRECTORY ExportDir = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
@@ -272,12 +272,12 @@ DWORD ResolveExportAddress(HANDLE process, const char* TargetExport, module_data
 
 		if (_stricmp(TargetExport, ExportName) == 0)
 		{
-			const DWORD fnRVA = EAT[static_cast<DWORD>(OrdinalTable[i])];
+			const DWORD FnRva = EAT[static_cast<DWORD>(OrdinalTable[i])];
 
 			// If fnAddress is within the export section, its a forwarder
-			if (fnRVA >= ExportDir.VirtualAddress && fnRVA < ExportDir.VirtualAddress + ExportDir.Size)
+			if (FnRva >= ExportDir.VirtualAddress && FnRva < ExportDir.VirtualAddress + ExportDir.Size)
 			{
-				const char* ForwarderName = ConvertRVA<const char*>(ModuleData, fnRVA, ModuleData.ImageBase);
+				const char* ForwarderName = ConvertRVA<const char*>(ModuleData, FnRva, ModuleData.ImageBase);
 				if (ForwarderName == nullptr)
 				{
 					PrintErrorRVA("EAT[OrdinalTable[i]]<FORWARDER>");
@@ -288,7 +288,7 @@ DWORD ResolveExportAddress(HANDLE process, const char* TargetExport, module_data
 				HostModuleName = fnName.substr(0, fnName.find_first_of('.')) + ".dll";
 				fnName.erase(0, fnName.find_last_of('.') + 1);
 
-				module_data* HostModule = FindModule(HostModuleName.c_str());
+				DLL_DATA* HostModule = GetDllData(HostModuleName.c_str());
 				if (HostModule == nullptr)
 				{
 					modules.push_back({});
@@ -319,7 +319,7 @@ DWORD ResolveExportAddress(HANDLE process, const char* TargetExport, module_data
 				return ResolveExportAddress(process, fnName.c_str(), *HostModule);
 			}
 
-			return ConvertRVA<DWORD>(ModuleData, fnRVA, ModuleData.RemoteBase, true);
+			return ConvertRVA<DWORD>(ModuleData, FnRva, ModuleData.RemoteBase, true);
 		}
 	}
 	
@@ -327,7 +327,7 @@ DWORD ResolveExportAddress(HANDLE process, const char* TargetExport, module_data
 	return NULL;
 }
 
-bool ResolveImports(HANDLE process, module_data* ModuleData, int it)
+bool ResolveImports(HANDLE process, DLL_DATA* ModuleData, int it)
 {
 	const IMAGE_DATA_DIRECTORY ImportTable = pGetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_IMPORT);
 	auto ImportDir = ConvertRVA<const IMAGE_IMPORT_DESCRIPTOR*>(*ModuleData, ImportTable.VirtualAddress, ModuleData->ImageBase);
@@ -339,9 +339,9 @@ bool ResolveImports(HANDLE process, module_data* ModuleData, int it)
 
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
-		auto ModuleName = ConvertRVA<const char*>(*ModuleData, ImportDir[i].Name, ModuleData->ImageBase);
+		auto DllName = ConvertRVA<const char*>(*ModuleData, ImportDir[i].Name, ModuleData->ImageBase);
 
-		module_data* ImportedModule = FindModule(ModuleName);
+		DLL_DATA* ImportedModule = GetDllData(DllName);
 		if (ImportedModule == nullptr)
 		{
 			PrintError("FAILED TO LOCATE MODULE[ResolveImports]", IGNORE_ERR);
@@ -373,10 +373,10 @@ bool ResolveImports(HANDLE process, module_data* ModuleData, int it)
 				return false;
 			}
 			
-			const DWORD fnAddress = ResolveExportAddress(process, ImportByName->Name, *ImportedModule);
-			if (fnAddress == NULL) return false;
+			const DWORD_PTR FnAddress = ResolveExportAddress(process, ImportByName->Name, *ImportedModule);
+			if (FnAddress == NULL) return false;
 
-			IAT[fn].u1.AddressOfData = fnAddress;
+			IAT[fn].u1.AddressOfData = FnAddress;
 			ModuleData = &modules[it];
 		}
 	}

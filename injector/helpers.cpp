@@ -34,14 +34,19 @@ bool IsApiSet(std::string ModuleName)
 	return true;
 }
 
-bool GetModule(HANDLE process, const std::string DllName, module_data* buffer)
+bool GetModule(HANDLE process, const std::string DllName, DLL_DATA* buffer)
 {
 	// Checking if the module is an API set, retrieving it from Windows\SysWOW64\downlevel if so
 	// Once the injector is functional, the module location process will be updated to match the Windows DLL Loader
 
+#pragma warning(push)
+#pragma warning(disable : 6031)
+
 	std::string SysWOW(MAX_PATH, 0);
 	GetWindowsDirectoryA(SysWOW.data(), MAX_PATH);
 	SysWOW += "\\SysWOW64\\";
+
+#pragma warning(pop)
 
 	if (IsApiSet(DllName))
 	{
@@ -89,11 +94,15 @@ bool GetModule(HANDLE process, const std::string DllName, module_data* buffer)
 	return false;
 }
 
-module_data* FindModule(const char* name, int* pos, int* ReturnedVec)
+DLL_DATA* GetDllData(const char* name, int* pos, bool* ReturnedVec)
 {
-	for (UINT i = 0; i < modules.size(); ++i)
+	std::vector<DLL_DATA>* ModuleVector = &modules;
+
+CheckVector:
+
+	for (UINT i = 0; i < ModuleVector->size(); ++i)
 	{
-		if (_stricmp(modules[i].name.c_str(), name) == 0)
+		if (_stricmp(ModuleVector[0][i].name.c_str(), name) == 0)
 		{
 			if (pos)
 			{
@@ -101,25 +110,12 @@ module_data* FindModule(const char* name, int* pos, int* ReturnedVec)
 				*ReturnedVec = unloaded;
 			}
 
-			return &modules[i];
+			return &ModuleVector[0][i];
 		}
 	}
 
-	for (UINT i = 0; i < LoadedModules.size(); ++i)
-	{
-		if (_stricmp(LoadedModules[i].name.c_str(), name) == 0)
-		{
-			if (pos)
-			{
-				*pos = i;
-				*ReturnedVec = loaded;
-			}
-
-			return &LoadedModules[i];
-		}
-	}
-
-	return nullptr;
+	if (ModuleVector == &LoadedModules) return nullptr;
+	else { ModuleVector = &LoadedModules; goto CheckVector; }
 }
 
 std::string UnicodeToMultibyte(UNICODE_STRING& wstr)
