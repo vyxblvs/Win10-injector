@@ -6,7 +6,7 @@
 
 bool IsApiSet(std::string ModuleName)
 {
-	// API Set naming conventions specified at https://learn.microsoft.com/en-us/windows/win32/apiindex/windows-apisets
+	// API Set naming conventions: https://learn.microsoft.com/en-us/windows/win32/apiindex/windows-apisets
 
 	if (ModuleName.substr(ModuleName.size() - 4) == ".dll")
 		ModuleName.erase(ModuleName.size() - 4);
@@ -34,7 +34,7 @@ bool IsApiSet(std::string ModuleName)
 	return true;
 }
 
-bool GetModule(HANDLE process, const std::string DllName, DLL_DATA* buffer)
+bool GetModule(HANDLE process, const std::string& DllName, DLL_DATA* buffer)
 {
 	// Checking if the module is an API set, retrieving it from Windows\SysWOW64\downlevel if so
 	// Once the injector is functional, the module location process will be updated to match the Windows DLL Loader
@@ -99,24 +99,24 @@ DLL_DATA* GetDllData(const char* name, int* pos, bool* ReturnedVec)
 {
 	std::vector<DLL_DATA>* ModuleVector = &modules;
 
-CheckVector:
-
-	for (UINT i = 0; i < ModuleVector->size(); ++i)
+	for (int v = 0; v < 2; ++v, ModuleVector = &LoadedModules)
 	{
-		if (_stricmp(ModuleVector[0][i].name.c_str(), name) == 0)
+		for (UINT i = 0; i < ModuleVector->size(); ++i)
 		{
-			if (pos)
+			if (_stricmp(ModuleVector[0][i].name.c_str(), name) == 0)
 			{
-				*pos = i;
-				*ReturnedVec = unloaded;
-			}
+				if (pos)
+				{
+					*pos = i;
+					*ReturnedVec = v;
+				}
 
-			return &ModuleVector[0][i];
+				return &ModuleVector[0][i];
+			}
 		}
 	}
 
-	if (ModuleVector == &LoadedModules) return nullptr;
-	else { ModuleVector = &LoadedModules; goto CheckVector; }
+	return nullptr;
 }
 
 std::string UnicodeToMultibyte(UNICODE_STRING& wstr)

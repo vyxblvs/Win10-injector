@@ -125,7 +125,7 @@ bool MapDLL(HANDLE process, DLL_DATA& dll)
 		}
 	}
 
-	return true;
+	return true; 
 }
 
 bool RunDllMain(HANDLE process, const DLL_DATA& dll)

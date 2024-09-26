@@ -323,7 +323,7 @@ DWORD_PTR ResolveExportAddress(HANDLE process, const char* TargetExport, DLL_DAT
 		}
 	}
 	
-	PrintError("FAILED TO GET EXPORT ADDRESS", IGNORE_ERR);
+	PrintError("FAILED TO RESOLVE EXPORT ADDRESS", IGNORE_ERR);
 	return NULL;
 }
 
