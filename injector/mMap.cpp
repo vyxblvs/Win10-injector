@@ -11,7 +11,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 {
 	modules.push_back({});
 
-	if (!LoadDLL(DllPath, &modules.back())) {
+	if (!LoadDll(DllPath, &modules.back())) {
 		return false;
 	}
 
@@ -50,7 +50,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 	{
 		if (!data.IsApiSet) continue;
 
-		if (!GetApiHost(data))
+		if (!ResolveApiHost(data))
 			return false;
 	}
 
@@ -68,15 +68,6 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 			return false;
 	}
 
-	// Freeing LoadedModules
-
-	for (auto& data : LoadedModules)
-	{
-		if (data.ImageBase) delete[] data.ImageBase;
-	}
-
-	LoadedModules.clear();
-
 	// Mapping modules
 
 	for (auto& data : modules)
@@ -86,17 +77,6 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 		if (!MapDLL(process, data))
 			return false;
 	}
-	
-	RunDllMain(process, modules[0]);
 
-	// Freeing modules
-
-	for (auto& data : modules)
-	{
-		delete[] data.ImageBase;
-	} 
-
-	modules.clear();
-
-	return true;
+	return RunDllMain(process, modules[0]);
 } 

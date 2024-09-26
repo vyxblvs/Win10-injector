@@ -25,7 +25,7 @@ template <typename ret, typename ptr> auto ConvertRVA(const module_data& image, 
 	return NULL;
 }
 
-bool LoadDLL(const char* path, module_data* buffer)
+bool LoadDll(const char* path, module_data* buffer)
 {
 	std::ifstream image(path, std::ios::binary | std::ios::ate);
 	if (image.fail())
@@ -81,7 +81,7 @@ bool GetDependencies(HANDLE process, module_data* target, int it)
 			if (_stricmp(LoadedModule.name.c_str(), name) == 0) 
 			{
 				// If the module is already loaded in the target process but unloaded modules depend on it the image is to be loaded locally
-				if (!LoadedModule.ImageBase && !LoadDLL(LoadedModule.path.c_str(), &LoadedModule))
+				if (!LoadedModule.ImageBase && !LoadDll(LoadedModule.path.c_str(), &LoadedModule))
 					return false;
 
 				IsLoaded = true;
@@ -146,7 +146,7 @@ bool ApplyRelocation(const module_data& ModuleData)
 	return true;
 }
 
-bool GetApiHost(module_data& api)
+bool ResolveApiHost(module_data& api)
 {
 	// Most of this function's code is from my other project, ApiView: https://github.com/islipnot/ApiView
 	// This function specifically emulates ntdll's, ApiSetpSearchForApiSet
@@ -154,7 +154,7 @@ bool GetApiHost(module_data& api)
 	static auto ApiSetMap = reinterpret_cast<NAMESPACE_HEADER*>(NtCurrentTeb()->ProcessEnvironmentBlock->Reserved9[0]);
 	auto dwApiSetMap = reinterpret_cast<DWORD>(ApiSetMap);
 
-	size_t ApiSubNameSz = api.name.size() - 6;
+	const size_t ApiSubNameSz = api.name.size() - 6;
 	std::wstring wApiName(ApiSubNameSz, '\0');
 
 	mbstowcs(wApiName.data(), api.name.c_str(), ApiSubNameSz);
@@ -227,7 +227,7 @@ bool GetApiHost(module_data& api)
 	return true;
 }
 
-DWORD GetExportAddress(HANDLE process, const char* TargetExport, module_data& ModuleData)
+DWORD ResolveExportAddress(HANDLE process, const char* TargetExport, module_data& ModuleData)
 {
 	BYTE* ImageBase = ModuleData.ImageBase;
 	const IMAGE_DATA_DIRECTORY ExportDir = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
@@ -301,7 +301,7 @@ DWORD GetExportAddress(HANDLE process, const char* TargetExport, module_data& Mo
 					{
 						ApiSets.push_back({});
 						HostModule->ApiDataPos = ApiSets.size() - 1;
-						GetApiHost(modules.back());
+						ResolveApiHost(modules.back());
 					}
 				}
 
@@ -312,11 +312,11 @@ DWORD GetExportAddress(HANDLE process, const char* TargetExport, module_data& Mo
 					if (ApiSet.HostVec == loaded) HostModule = &LoadedModules[ApiSet.HostPos];
 					else HostModule = &modules[ApiSet.HostPos];
 				}
-				if (!HostModule->ImageBase && !LoadDLL(HostModule->path.c_str(), HostModule)) {
+				if (!HostModule->ImageBase && !LoadDll(HostModule->path.c_str(), HostModule)) {
 					return NULL;
 				}
 
-				return GetExportAddress(process, fnName.c_str(), *HostModule);
+				return ResolveExportAddress(process, fnName.c_str(), *HostModule);
 			}
 
 			return ConvertRVA<DWORD>(ModuleData, fnRVA, ModuleData.RemoteBase, true);
@@ -373,7 +373,7 @@ bool ResolveImports(HANDLE process, module_data* ModuleData, int it)
 				return false;
 			}
 			
-			const DWORD fnAddress = GetExportAddress(process, ImportByName->Name, *ImportedModule);
+			const DWORD fnAddress = ResolveExportAddress(process, ImportByName->Name, *ImportedModule);
 			if (fnAddress == NULL) return false;
 
 			IAT[fn].u1.AddressOfData = fnAddress;

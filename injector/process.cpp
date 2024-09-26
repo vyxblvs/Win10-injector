@@ -131,10 +131,10 @@ bool RunDllMain(HANDLE process, const module_data& dll)
 {
 	BYTE shellcode[] =
 	{
-		0x6A, 0x00,       // push 0     (lpvReserved)
-		0x6A, 0x01,       // push 1     (fdwReason - DLL_PROCESS_ATTACH)
-		0x68, 0, 0, 0, 0, // push 0     (hinstDLL)
-		0xE8, 0, 0, 0, 0, // call 0     (DllMain)
+		0x6A, 0x00,       // push 0 (lpvReserved)
+		0x6A, 0x01,       // push 1 (fdwReason - DLL_PROCESS_ATTACH)
+		0x68, 0, 0, 0, 0, // push 0 (hinstDLL)
+		0xE8, 0, 0, 0, 0, // call 0 (DllMain)
 		0xC3              // ret
 	};
 

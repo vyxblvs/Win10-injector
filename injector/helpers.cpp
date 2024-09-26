@@ -34,19 +34,23 @@ bool IsApiSet(std::string ModuleName)
 	return true;
 }
 
-bool GetModule(HANDLE process, const std::string name, module_data* buffer)
+bool GetModule(HANDLE process, const std::string DllName, module_data* buffer)
 {
 	// Checking if the module is an API set, retrieving it from Windows\SysWOW64\downlevel if so
 	// Once the injector is functional, the module location process will be updated to match the Windows DLL Loader
 
-	if (IsApiSet(name))
+	std::string SysWOW(MAX_PATH, 0);
+	GetWindowsDirectoryA(SysWOW.data(), MAX_PATH);
+	SysWOW += "\\SysWOW64\\";
+
+	if (IsApiSet(DllName))
 	{
-		const std::string APIpath = "C:\\Windows\\SysWOW64\\downlevel\\" + name;
+		const std::string APIpath = SysWOW + "downlevel\\" + DllName;
 
 		if (PathFileExistsA(APIpath.c_str()))
 		{
 			buffer->IsApiSet = true;
-			return LoadDLL(APIpath.c_str(), buffer);
+			return LoadDll(APIpath.c_str(), buffer);
 		}
 		else
 		{
@@ -57,9 +61,10 @@ bool GetModule(HANDLE process, const std::string name, module_data* buffer)
 
 	// Checking Windows\SysWOW64
 
-	std::string DllPath = "C:\\Windows\\SysWOW64\\" + name;
+	std::string DllPath = SysWOW + DllName;
+
 	if (PathFileExistsA(DllPath.c_str())) {
-		return LoadDLL(DllPath.c_str(), buffer);
+		return LoadDll(DllPath.c_str(), buffer);
 	}
 
 	// Checking target process folder
@@ -74,10 +79,10 @@ bool GetModule(HANDLE process, const std::string name, module_data* buffer)
 	}
 
 	DllPath.erase(DllPath.find_last_of('\\') + 1, DllPath.size());
-	DllPath += name;
+	DllPath += DllName;
 
 	if (PathFileExistsA(DllPath.c_str())) {
-		return LoadDLL(DllPath.c_str(), buffer);
+		return LoadDll(DllPath.c_str(), buffer);
 	}
 
 	PrintError("FAILED TO LOCATE MODULE");

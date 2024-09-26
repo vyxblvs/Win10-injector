@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-
+	
 	const HANDLE process = GetProcessHandle(ProcessName);
 	if (!process) {
 		return 1;
@@ -68,15 +68,35 @@ int main(int argc, char* argv[])
 
 	if (method == _LoadLibrary && !LoadLibInject(process, DllPath))
 	{
-		PrintError("LoadLibraryA injection failed\n", false);
+		PrintError("LoadLibraryA injection failed\n", IGNORE_ERR);
+		CloseHandle(process);
 		return 1;
 	}
-	else if (method == ManualMap && !ManualMapDll(process, DllPath))
+	else if (method == ManualMap)
 	{
-		PrintError("Manual Mapping injection failed\n", false);
-		return 1;
+		const bool status = ManualMapDll(process, DllPath);
+
+		for (auto& data : LoadedModules)
+		{
+			if (data.ImageBase) delete[] data.ImageBase;
+		}
+		LoadedModules.clear();
+
+		for (auto& data : modules)
+		{
+			delete[] data.ImageBase;
+		}
+		modules.clear();
+
+		if (!status)
+		{
+			PrintError("Manual map injection failed!\n", IGNORE_ERR);
+			CloseHandle(process);
+			return 1;
+		}
 	}
 
 	std::cout << "DLL Successfully Injected!\n";
+	CloseHandle(process);
 	return 0;
 }
