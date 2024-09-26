@@ -39,7 +39,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 
 		if (!dll.pRemoteBase)
 		{
-			PrintError("VirtualAllocEx[lpvRemoteBase]");
+			PrintError("VirtualAllocEx[pRemoteBase]");
 			return false;
 		}
 	}

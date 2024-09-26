@@ -136,7 +136,7 @@ bool RunDllMain(HANDLE process, const DLL_DATA& dll)
 		0x6A, 0x01,       // push 1 (fdwReason - DLL_PROCESS_ATTACH)
 		0x68, 0, 0, 0, 0, // push 0 (hinstDLL)
 		0xE8, 0, 0, 0, 0, // call 0 (DllMain)
-		0xC3              // ret
+		0xC2, 0x04, 0x00  // ret 4
 	};
 
 	void* pShellcode = __VirtualAllocEx(process, sizeof(shellcode), PAGE_EXECUTE_READWRITE);

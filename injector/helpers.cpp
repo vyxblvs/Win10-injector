@@ -43,7 +43,8 @@ bool GetModule(HANDLE process, const std::string DllName, DLL_DATA* buffer)
 #pragma warning(disable : 6031)
 
 	std::string SysWOW(MAX_PATH, 0);
-	GetWindowsDirectoryA(SysWOW.data(), MAX_PATH);
+	const UINT WinDirSz = GetWindowsDirectoryA(SysWOW.data(), MAX_PATH);
+	SysWOW.resize(WinDirSz);
 	SysWOW += "\\SysWOW64\\";
 
 #pragma warning(pop)
