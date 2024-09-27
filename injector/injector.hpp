@@ -1,16 +1,21 @@
 #pragma once
 
+// Enums
+
+enum InjectionMethod
+{
+	ManualMap = 0,
+	LoadLib   = 1,
+};
+
+enum ErrorFlags
+{
+	IGNORE_ERR_CODE = 0,
+	GET_LAST_ERR    = 1,
+	RVA_CONVERT_ERR = 2
+};
+
 // Macros
-
-#define ManualMap    0
-
-#define _LoadLibrary 1
-
-#define IGNORE_ERR   0
-
-#define GET_LAST_ERR 1
-
-#define RVA_CONVERSION_ERROR     2
 
 #define __VirtualAllocEx(hProcess, dwSize, flProtect) VirtualAllocEx(hProcess, nullptr, dwSize, MEM_COMMIT | MEM_RESERVE, flProtect)
 
@@ -20,6 +25,6 @@
 
 // Forward declarations
 
-int PrintError(const char* msg, int ErrorMode = GET_LAST_ERR, const char* rvaDesc = nullptr);
+int PrintError(const char* msg, ErrorFlags ErrorMode = GET_LAST_ERR, const char* rvaDesc = nullptr);
 
 int PrintErrorRVA(const char* rvaDesc);

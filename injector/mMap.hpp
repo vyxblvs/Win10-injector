@@ -1,13 +1,17 @@
 #pragma once
 
-#define unloaded 0
+// Structs/Enums
 
-#define loaded   1
+enum HostVector
+{
+	unloaded = 0,
+	loaded   = 1
+};
 
 struct API_DATA
 {
 	int HostPos = -1;
-	bool HostVec;
+	int HostVec = -1;
 };
 
 struct DLL_DATA
@@ -28,6 +32,8 @@ struct DLL_DATA
 		ULONG ApiDataPos;
 	};
 };
+
+// Forward declarations
 
 extern std::vector<API_DATA> ApiSets;
 extern std::vector<DLL_DATA> LoadedModules, modules;

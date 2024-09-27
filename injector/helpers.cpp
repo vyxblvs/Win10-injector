@@ -88,7 +88,7 @@ bool GetModule(HANDLE process, const std::string& DllName, DLL_DATA* buffer)
 	return PrintError("FAILED TO LOCATE MODULE");
 }
 
-DLL_DATA* GetDllData(const char* name, int* pos, bool* ReturnedVec)
+DLL_DATA* GetDllData(const char* name, int* pos, int* DllVec)
 {
 	std::vector<DLL_DATA>* ModuleVector = &modules;
 
@@ -101,7 +101,7 @@ DLL_DATA* GetDllData(const char* name, int* pos, bool* ReturnedVec)
 				if (pos)
 				{
 					*pos = i;
-					*ReturnedVec = v;
+					*DllVec = v;
 				}
 
 				return &ModuleVector[0][i];

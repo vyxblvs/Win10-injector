@@ -6,25 +6,21 @@
 
 // Error handling is to be cleaned up once manual mapping is functional, especially ConvertRVA errors.
 
-int PrintError(const char* msg, int ErrorMode, const char* rvaDesc)
+int PrintError(const char* msg, ErrorFlags ErrorMode, const char* rvaDesc)
 {
-	if (ErrorMode == RVA_CONVERSION_ERROR) {
-		std::cerr << "ERROR: FAILED TO CONVERT RVA (" << rvaDesc << ")\n";
-	}
-	else if (ErrorMode == GET_LAST_ERR) {
-		std::cerr << "ERROR: " << msg << " (" << GetLastError() << ")\n";
-	}
-	else {
-		std::cerr << "ERROR: " << msg << '\n';
+	switch (ErrorMode)
+	{
+	case RVA_CONVERT_ERR: std::cerr << "ERROR: FAILED TO CONVERT RVA (" << rvaDesc << ")\n"; break;
+	case GET_LAST_ERR:    std::cerr << "ERROR: " << msg << " (" << GetLastError() << ")\n";  break;
+	default:              std::cerr << "ERROR: " << msg << '\n';
 	}
 
-	return NULL;
+	return 0;
 }
 
 int PrintErrorRVA(const char* rvaDesc) 
 { 
-	PrintError(nullptr, RVA_CONVERSION_ERROR, rvaDesc);
-	return 0;
+	return PrintError(nullptr, RVA_CONVERT_ERR, rvaDesc);
 }
 
 // THIS INJECTOR IS MADE FOR x86 PROCESSES/DLLS
@@ -37,12 +33,12 @@ int wmain(int argc, wchar_t* argv[])
 {
 	const wchar_t* ProcessNameW;
 	const wchar_t* DllPathW;
-	bool method = _LoadLibrary;
+	bool method = LoadLib;
 
 	// Checking arguments
 	if (argc < 3)
 	{
-		PrintError("Invalid Arguments", false);
+		PrintError("Invalid Arguments", IGNORE_ERR_CODE);
 		return 1;
 	}
 	else
@@ -59,7 +55,7 @@ int wmain(int argc, wchar_t* argv[])
 			else if (_wcsicmp(argv[3], L"LoadLibraryW") != 0)
 			{
 				// Does not default to LoadLibraryW in this case to avoid unwanted injection
-				PrintError("Invalid injection method", false);
+				PrintError("Invalid injection method", IGNORE_ERR_CODE);
 				return 1;
 			}
 		}
@@ -68,9 +64,9 @@ int wmain(int argc, wchar_t* argv[])
 	const HANDLE process = GetProcessHandle(ProcessNameW);
 	if (!process) return 1;
 
-	if (method == _LoadLibrary && !LoadLibInject(process, DllPathW))
+	if (method == LoadLib && !LoadLibInject(process, DllPathW))
 	{
-		PrintError("LoadLibraryA injection failed\n", IGNORE_ERR);
+		PrintError("LoadLibraryW injection failed\n", IGNORE_ERR_CODE);
 		CloseHandle(process);
 		return 1;
 	}
@@ -97,7 +93,7 @@ int wmain(int argc, wchar_t* argv[])
 
 		if (!status)
 		{
-			PrintError("Manual map injection failed!\n", IGNORE_ERR);
+			PrintError("Manual map injection failed!\n", IGNORE_ERR_CODE);
 			CloseHandle(process);
 			return 1;
 		}

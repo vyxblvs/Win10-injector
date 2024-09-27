@@ -1,6 +1,6 @@
 #pragma once
 
-HANDLE GetProcessHandle(const wchar_t * ProcessName);
+HANDLE GetProcessHandle(const wchar_t* ProcessName);
 
 bool GetLoadedModules(HANDLE process);
 

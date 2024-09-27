@@ -12,20 +12,16 @@ bool LoadLibInject(const HANDLE process, const wchar_t* DllPath)
 	}
 
 	if (!WPM(process, DllBuffer, DllPath, PathSize)) {
-		PrintError("WriteProcessMemory[dll_buffer]");
+		return PrintError("WriteProcessMemory[dll_buffer]");
 	}
 
 	const HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
-	if (!kernel32) {
-		return PrintError("GetModuleHandle");
-	}
+	if (kernel32 == 0) return PrintError("GetModuleHandle");
 
-	const FARPROC LoadLibAddr = GetProcAddress(kernel32, "LoadLibraryW");
-	if (!LoadLibAddr) {
-		PrintError("GetProcAddress");
-	}
+	const FARPROC pLoadLib = GetProcAddress(kernel32, "LoadLibraryW");
+	if (pLoadLib == NULL) return PrintError("GetProcAddress");
 
-	if (!__CreateRemoteThread(process, LoadLibAddr, DllBuffer)) {
+	if (!__CreateRemoteThread(process, pLoadLib, DllBuffer)) {
 		PrintError("CreateRemoteThread[LoadLibInject]");
 	}
 

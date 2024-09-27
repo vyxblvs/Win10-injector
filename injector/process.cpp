@@ -46,7 +46,7 @@ HANDLE GetProcessHandle(const wchar_t* ProcessName)
 
 			if (Wow64Process == FALSE)
 			{
-				PrintError("INVALID PROCESS ARCHITECTURE", IGNORE_ERR);
+				PrintError("INVALID PROCESS ARCHITECTURE", IGNORE_ERR_CODE);
 				CloseHandle(process);
 				return nullptr;
 			}
@@ -57,7 +57,7 @@ HANDLE GetProcessHandle(const wchar_t* ProcessName)
 	} while (Process32Next(snap, &pe32));
 
 
-	PrintError("FAILED TO LOCATE PROCESS", IGNORE_ERR);
+	PrintError("FAILED TO LOCATE PROCESS", IGNORE_ERR_CODE);
 	CloseHandle(snap);
 	return nullptr;
 }
@@ -103,7 +103,7 @@ bool MapDLL(HANDLE process, DLL_DATA& dll)
 	}
 
 	// Mapping sections
-	for (WORD i = 0; i < dll.NT_HEADERS->FileHeader.NumberOfSections; ++i)
+	for (int i = 0; i < dll.NT_HEADERS->FileHeader.NumberOfSections; ++i)
 	{
 		auto& section = sh[i];
 
