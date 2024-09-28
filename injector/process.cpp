@@ -44,7 +44,7 @@ HANDLE GetProcessHandle(const wchar_t* ProcessName)
 			BOOL Wow64Process;
 			IsWow64Process(process, &Wow64Process);
 
-			if (Wow64Process == FALSE)
+			if (!Wow64Process)
 			{
 				PrintError("INVALID PROCESS ARCHITECTURE", IGNORE_ERR_CODE);
 				CloseHandle(process);
@@ -60,6 +60,30 @@ HANDLE GetProcessHandle(const wchar_t* ProcessName)
 	PrintError("FAILED TO LOCATE PROCESS", IGNORE_ERR_CODE);
 	CloseHandle(snap);
 	return nullptr;
+}
+
+bool LoadLibInject(const HANDLE process, const wchar_t* DllPath)
+{
+	const size_t PathSize = wcslen(DllPath);
+
+	void* DllBuffer = __VirtualAllocEx(process, PathSize, PAGE_READWRITE);
+	if (!DllBuffer) return PrintError("VirtualAllocEx[LoadLibInject]");
+
+	if (!WPM(process, DllBuffer, DllPath, PathSize)) {
+		return PrintError("WriteProcessMemory[dll_buffer]");
+	}
+
+	const HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
+	if (!kernel32) return PrintError("GetModuleHandle");
+
+	const FARPROC pLoadLib = GetProcAddress(kernel32, "LoadLibraryW");
+	if (!pLoadLib) return PrintError("GetProcAddress");
+
+	if (!__CreateRemoteThread(process, pLoadLib, DllBuffer)) {
+		PrintError("CreateRemoteThread[LoadLibInject]");
+	}
+
+	return true;
 }
 
 bool GetLoadedModules(HANDLE process)
@@ -131,19 +155,17 @@ bool RunDllMain(HANDLE process, const DLL_DATA& dll)
 	};
 
 	void* pShellcode = __VirtualAllocEx(process, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
-	if (pShellcode == NULL) {
-		return PrintError("VirtualAllocEx[RunDllMain]");
-	}
-
+	if (!pShellcode) return PrintError("VirtualAllocEx[RunDllMain]");
+	
 	const DWORD_PTR EntryPoint = GetEntryPoint(dll) + dll.RemoteBase;
 	*reinterpret_cast<DWORD*>(shellcode + 5) = dll.RemoteBase; // hinstDLL
 	*reinterpret_cast<DWORD*>(shellcode + 10) = EntryPoint - (reinterpret_cast<DWORD>(pShellcode) + 14); // EP
 
-	if (WPM(process, pShellcode, shellcode, sizeof(shellcode)) == 0) {
+	if (!WPM(process, pShellcode, shellcode, sizeof(shellcode))) {
 		return PrintError("WriteProcessMemory[RunDllMain]");
 	}
 
-	if (__CreateRemoteThread(process, pShellcode, nullptr) == 0) {
+	if (!__CreateRemoteThread(process, pShellcode, nullptr)) {
 		return PrintError("CreateRemoteThread[RunDllMain]");
 	}
 	

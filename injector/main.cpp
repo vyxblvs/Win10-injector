@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "mMap.hpp"
 #include "injector.hpp"
-#include "LoadLib.hpp"
 #include "process.hpp"
 
 // Error handling is to be cleaned up once manual mapping is functional, especially ConvertRVA errors.

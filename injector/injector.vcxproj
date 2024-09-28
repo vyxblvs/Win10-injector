@@ -138,7 +138,6 @@
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="parsing.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="LoadLib.cpp" />
     <ClCompile Include="mMap.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -150,7 +149,6 @@
     <ClInclude Include="helpers.hpp" />
     <ClInclude Include="parsing.hpp" />
     <ClInclude Include="injector.hpp" />
-    <ClInclude Include="LoadLib.hpp" />
     <ClInclude Include="mMap.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="process.hpp" />

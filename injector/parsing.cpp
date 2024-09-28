@@ -59,17 +59,13 @@ bool GetDependencies(HANDLE process, DLL_DATA* target, int it)
 	const IMAGE_DATA_DIRECTORY ImportTable = pGetDataDir(target, IMAGE_DIRECTORY_ENTRY_IMPORT);
 
 	auto ImportDir = ResolveRva<const IMAGE_IMPORT_DESCRIPTOR*>(*target, ImportTable.VirtualAddress, target->ImageBase);
-	if (ImportDir == nullptr) {
-		return PrintErrorRVA("ImportTable.VirtualAddress");
-	}
-
+	if (!ImportDir) return PrintErrorRVA("ImportTable.VirtualAddress");
+	
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
-		auto DllName = ResolveRva(*target, ImportDir[i].Name, target->ImageBase);
-		if (DllName == nullptr) {
-			return PrintErrorRVA("ImportDir.Name");
-		}
-
+		const char* DllName = ResolveRva(*target, ImportDir[i].Name, target->ImageBase);
+		if (!DllName) return PrintErrorRVA("ImportDir.Name");
+		
 		bool IsLoaded = false;
 		for (DLL_DATA& dll : LoadedModules)
 		{
@@ -107,9 +103,7 @@ bool ApplyRelocation(const DLL_DATA& ModuleData)
 
 	const IMAGE_DATA_DIRECTORY pRelocTable = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_BASERELOC);
 	auto RelocTable = ResolveRva<IMAGE_BASE_RELOCATION*>(ModuleData, pRelocTable.VirtualAddress, ModuleData.ImageBase);
-	if (RelocTable == nullptr) {
-		return PrintErrorRVA("pRelocTable.VirtualAddress");
-	}
+	if (!RelocTable) return PrintErrorRVA("pRelocTable.VirtualAddress");
 	
 	const BYTE* RelocTableEnd = reinterpret_cast<BYTE*>(RelocTable) + pRelocTable.Size;
 	const DWORD PreferredBase = ModuleData.NT_HEADERS->OptionalHeader.ImageBase;
@@ -126,9 +120,7 @@ bool ApplyRelocation(const DLL_DATA& ModuleData)
 
 			const DWORD rva = static_cast<DWORD>(entry[i].Offset) + RelocTable->VirtualAddress;
 			auto RelocAddress = ResolveRva<DWORD*>(ModuleData, rva, ModuleData.ImageBase);
-			if (RelocAddress == nullptr) {
-				return PrintErrorRVA("RelocAddress");
-			}
+			if (!RelocAddress) return PrintErrorRVA("RelocAddress");
 
 			*RelocAddress = (*RelocAddress - PreferredBase) + AllocatedBase;
 		}
@@ -226,23 +218,21 @@ DWORD_PTR ResolveExportAddress(HANDLE process, const char* TargetExport, DLL_DAT
 	const IMAGE_DATA_DIRECTORY ExportDir = GetDataDir(ModuleData, IMAGE_DIRECTORY_ENTRY_EXPORT);
 
 	auto ExportTable = ResolveRva<const IMAGE_EXPORT_DIRECTORY*>(ModuleData, ExportDir.VirtualAddress, ImageBase);
-	if (ExportTable  == nullptr) return PrintErrorRVA("ExportDir.VirtualAddress");
+	if (!ExportTable) return PrintErrorRVA("ExportDir.VirtualAddress");
 	
 	auto NameTablePtr = ResolveRva<DWORD*>(ModuleData, ExportTable->AddressOfNames, ImageBase);
-	if (NameTablePtr == nullptr) return PrintErrorRVA("ExportTable->AddressOfNames");
+	if (!NameTablePtr) return PrintErrorRVA("ExportTable->AddressOfNames");
 
 	auto OrdinalTable = ResolveRva<WORD*>(ModuleData, ExportTable->AddressOfNameOrdinals, ModuleData.ImageBase);
-	if (OrdinalTable == nullptr) return PrintErrorRVA("ExportTable->AddressOfNameOrdinals");
+	if (!OrdinalTable) return PrintErrorRVA("ExportTable->AddressOfNameOrdinals");
 	
 	auto EAT = ResolveRva<DWORD*>(ModuleData, ExportTable->AddressOfFunctions, ModuleData.ImageBase);
-	if (EAT == nullptr) return PrintErrorRVA("ExportTable->AddressOfFunctions");
+	if (!EAT) return PrintErrorRVA("ExportTable->AddressOfFunctions");
 	
 	for (ULONG i = 0; i < ExportTable->NumberOfFunctions; ++i)
 	{
-		auto ExportName = ResolveRva(ModuleData, NameTablePtr[i], ImageBase);
-		if (ExportName == nullptr) {
-			return PrintErrorRVA("NameTable[i]");
-		}
+		const char* ExportName = ResolveRva(ModuleData, NameTablePtr[i], ImageBase);
+		if (!ExportName) return PrintErrorRVA("NameTable[i]");	
 
 		if (_stricmp(TargetExport, ExportName) == 0)
 		{
@@ -252,7 +242,7 @@ DWORD_PTR ResolveExportAddress(HANDLE process, const char* TargetExport, DLL_DAT
 			if (FnRva >= ExportDir.VirtualAddress && FnRva < ExportDir.VirtualAddress + ExportDir.Size)
 			{
 				const char* ForwarderName = ResolveRva(ModuleData, FnRva, ModuleData.ImageBase);
-				if (ForwarderName == nullptr) return PrintErrorRVA("EAT[OrdinalTable[i]]<FORWARDER>");
+				if (!ForwarderName) return PrintErrorRVA("EAT[OrdinalTable[i]]<FORWARDER>");
 				
 				std::string HostName, FnName = ForwarderName;
 				HostName = FnName.substr(0, FnName.find_first_of('.')) + ".dll";
@@ -305,28 +295,26 @@ bool ResolveImports(HANDLE process, DLL_DATA* ModuleData, int it)
 	
 	for (int i = 0; ImportDir[i].Name; ++i)
 	{
-		auto DllName = ResolveRva(*ModuleData, ImportDir[i].Name, ModuleData->ImageBase);
+		const char* DllName = ResolveRva(*ModuleData, ImportDir[i].Name, ModuleData->ImageBase);
 
 		DLL_DATA* ImportedModule = GetDllData(DllName);
-		if (ImportedModule == nullptr) {
-			return PrintError("FAILED TO LOCATE MODULE[ResolveImports]", IGNORE_ERR_CODE);
-		}
-
+		if (!ImportedModule) return PrintError("FAILED TO LOCATE MODULE[ResolveImports]", IGNORE_ERR_CODE);
+		
 		// Import Address Table
 		auto IAT = ResolveRva<IMAGE_THUNK_DATA32*>(*ModuleData, ImportDir[i].FirstThunk, ModuleData->ImageBase);
-		if (IAT == nullptr) return PrintErrorRVA("ImportDir[i].FirstThunk");
+		if (!IAT) return PrintErrorRVA("ImportDir[i].FirstThunk");
 
 		// Import Lookup Table
 		auto ILT = ResolveRva<const IMAGE_THUNK_DATA32*>(*ModuleData, ImportDir[i].Characteristics, ModuleData->ImageBase);
-		if (ILT == nullptr) return PrintErrorRVA("ImportDir[i].Characteristics");
+		if (!ILT) return PrintErrorRVA("ImportDir[i].Characteristics"); 
 		
 		for (int fn = 0; ILT[fn].u1.Function; ++fn)
 		{
 			auto ImportByName = ResolveRva<const IMAGE_IMPORT_BY_NAME*>(*ModuleData, ILT[fn].u1.AddressOfData, ModuleData->ImageBase);
-			if (ImportByName == nullptr) return PrintError("ILT[fn].u1.AddressOfData");
+			if (!ImportByName) return PrintError("ILT[fn].u1.AddressOfData");
 			
 			const DWORD_PTR FnAddress = ResolveExportAddress(process, ImportByName->Name, *ImportedModule);
-			if (FnAddress == NULL) return false;
+			if (!FnAddress) return false;
 
 			IAT[fn].u1.AddressOfData = FnAddress;
 			ModuleData = &modules[it];

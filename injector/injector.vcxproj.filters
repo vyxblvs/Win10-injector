@@ -13,17 +13,11 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Source Files\manual mapping">
-      <UniqueIdentifier>{ea0fe4e3-5052-41a9-84ba-b9afa389b62d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\LoadLibrary">
-      <UniqueIdentifier>{aab891ff-f237-4c27-82ac-491c2e968eed}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\manual mapping">
       <UniqueIdentifier>{d0f9967f-0852-4e25-8342-f8a2022a25a6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\LoadLibrary">
-      <UniqueIdentifier>{4acde2de-b59e-461c-89fa-8456d2c45261}</UniqueIdentifier>
+    <Filter Include="Source Files\injector">
+      <UniqueIdentifier>{ea0fe4e3-5052-41a9-84ba-b9afa389b62d}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -34,19 +28,16 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="mMap.cpp">
-      <Filter>Source Files\manual mapping</Filter>
-    </ClCompile>
-    <ClCompile Include="LoadLib.cpp">
-      <Filter>Source Files\LoadLibrary</Filter>
+      <Filter>Source Files\injector</Filter>
     </ClCompile>
     <ClCompile Include="parsing.cpp">
-      <Filter>Source Files\manual mapping</Filter>
+      <Filter>Source Files\injector</Filter>
     </ClCompile>
     <ClCompile Include="process.cpp">
-      <Filter>Source Files\manual mapping</Filter>
+      <Filter>Source Files\injector</Filter>
     </ClCompile>
     <ClCompile Include="helpers.cpp">
-      <Filter>Source Files\manual mapping</Filter>
+      <Filter>Source Files\injector</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -55,9 +46,6 @@
     </ClInclude>
     <ClInclude Include="mMap.hpp">
       <Filter>Header Files\manual mapping</Filter>
-    </ClInclude>
-    <ClInclude Include="LoadLib.hpp">
-      <Filter>Header Files\LoadLibrary</Filter>
     </ClInclude>
     <ClInclude Include="injector.hpp">
       <Filter>Header Files</Filter>
