@@ -1,6 +1,6 @@
 #pragma once
 
-// ApiSetMap structs
+// Structs
 
 typedef struct API_SET_VALUE_ENTRY
 {
@@ -38,13 +38,19 @@ struct HASH_ENTRY
 	DWORD ApiIndex; // index of API Set in array of namespace entries
 };
 
+struct RELOC_DATA
+{
+	WORD Offset : 12;
+	WORD Type   : 4;
+};
+
 // Macros
 
 #define pGetDataDir(data, dir) data->NT_HEADERS->OptionalHeader.DataDirectory[dir]
 
 #define GetDataDir(data, dir) data.NT_HEADERS->OptionalHeader.DataDirectory[dir]
 
-#define GetEP(data) data.NT_HEADERS->OptionalHeader.AddressOfEntryPoint
+#define GetEntryPoint(data) data.NT_HEADERS->OptionalHeader.AddressOfEntryPoint
  
 // Forward Declarations
 

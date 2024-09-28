@@ -135,7 +135,7 @@ bool RunDllMain(HANDLE process, const DLL_DATA& dll)
 		return PrintError("VirtualAllocEx[RunDllMain]");
 	}
 
-	const DWORD_PTR EntryPoint = GetEP(dll) + dll.RemoteBase;
+	const DWORD_PTR EntryPoint = GetEntryPoint(dll) + dll.RemoteBase;
 	*reinterpret_cast<DWORD*>(shellcode + 5) = dll.RemoteBase; // hinstDLL
 	*reinterpret_cast<DWORD*>(shellcode + 10) = EntryPoint - (reinterpret_cast<DWORD>(pShellcode) + 14); // EP
 
