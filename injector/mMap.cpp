@@ -35,7 +35,7 @@ bool ManualMapDll(const HANDLE process, const char* DllPath)
 	{
 		if (dll.IsApiSet) continue;
 
-		dll.pRemoteBase = __VirtualAllocEx(process, dll.NT_HEADERS->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READWRITE);
+		dll.pRemoteBase = VirtualAllocExFill(process, dll.NT_HEADERS->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READWRITE);
 
 		if (!dll.pRemoteBase) {
 			return PrintError("VirtualAllocEx[pRemoteBase]");

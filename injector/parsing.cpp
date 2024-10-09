@@ -6,8 +6,6 @@
 
 template <typename ret = const char*, typename ptr> auto ResolveRva(const DLL_DATA& image, DWORD RVA, ptr ModuleBase, bool MappedAddress = false) -> ret
 {
-	// RVA/VA explanations: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#general-concepts
-
 	const IMAGE_SECTION_HEADER* sh = image.sections;
 
 	for (int i = 0; i < image.NT_HEADERS->FileHeader.NumberOfSections; ++i)

@@ -66,7 +66,7 @@ bool LoadLibInject(const HANDLE process, const wchar_t* DllPath)
 {
 	const size_t PathSize = wcslen(DllPath);
 
-	void* DllBuffer = __VirtualAllocEx(process, PathSize, PAGE_READWRITE);
+	void* DllBuffer = VirtualAllocExFill(process, PathSize, PAGE_READWRITE);
 	if (!DllBuffer) return PrintError("VirtualAllocEx[LoadLibInject]");
 
 	if (!WPM(process, DllBuffer, DllPath, PathSize)) {
@@ -79,7 +79,7 @@ bool LoadLibInject(const HANDLE process, const wchar_t* DllPath)
 	const FARPROC pLoadLib = GetProcAddress(kernel32, "LoadLibraryW");
 	if (!pLoadLib) return PrintError("GetProcAddress");
 
-	if (!__CreateRemoteThread(process, pLoadLib, DllBuffer)) {
+	if (!CreateRemoteThreadFill(process, pLoadLib, DllBuffer)) {
 		PrintError("CreateRemoteThread[LoadLibInject]");
 	}
 
@@ -154,7 +154,7 @@ bool RunDllMain(HANDLE process, const DLL_DATA& dll)
 		0xC2, 0x04, 0x00  // ret 4
 	};
 
-	void* pShellcode = __VirtualAllocEx(process, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
+	void* pShellcode = VirtualAllocExFill(process, sizeof(shellcode), PAGE_EXECUTE_READWRITE);
 	if (!pShellcode) return PrintError("VirtualAllocEx[RunDllMain]");
 	
 	const DWORD_PTR EntryPoint = GetEntryPoint(dll) + dll.RemoteBase;
@@ -165,7 +165,7 @@ bool RunDllMain(HANDLE process, const DLL_DATA& dll)
 		return PrintError("WriteProcessMemory[RunDllMain]");
 	}
 
-	if (!__CreateRemoteThread(process, pShellcode, nullptr)) {
+	if (!CreateRemoteThreadFill(process, pShellcode, nullptr)) {
 		return PrintError("CreateRemoteThread[RunDllMain]");
 	}
 	
